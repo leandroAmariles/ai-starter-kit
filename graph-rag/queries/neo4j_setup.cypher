@@ -1,0 +1,12 @@
+CREATE CONSTRAINT class_fqn_unique IF NOT EXISTS FOR (c:Class) REQUIRE c.fqn IS UNIQUE;
+CREATE CONSTRAINT annotation_name_unique IF NOT EXISTS FOR (a:Annotation) REQUIRE a.name IS UNIQUE;
+CREATE CONSTRAINT document_fqn_unique IF NOT EXISTS FOR (d:Document) REQUIRE d.fqn IS UNIQUE;
+DROP CONSTRAINT project_name_unique IF EXISTS;
+DROP CONSTRAINT topic_name_unique IF EXISTS;
+DROP CONSTRAINT external_service_name_unique IF EXISTS;
+CREATE INDEX project_lookup IF NOT EXISTS FOR (p:Project) ON (p.name, p.group);
+CREATE INDEX topic_lookup IF NOT EXISTS FOR (t:Topic) ON (t.name, t.group);
+CREATE INDEX external_service_lookup IF NOT EXISTS FOR (e:ExternalService) ON (e.name, e.group);
+CREATE INDEX database_lookup IF NOT EXISTS FOR (d:Database) ON (d.engine, d.database, d.group);
+CREATE VECTOR INDEX class_summaries_idx IF NOT EXISTS FOR (c:Class) ON (c.embedding) OPTIONS {indexConfig: {`vector.dimensions`: 384, `vector.similarity_function`: 'cosine'}};
+CREATE VECTOR INDEX document_summaries_idx IF NOT EXISTS FOR (d:Document) ON (d.embedding) OPTIONS {indexConfig: {`vector.dimensions`: 384, `vector.similarity_function`: 'cosine'}};

@@ -1,0 +1,25 @@
+# Changelog
+
+All notable changes to this kit (`ai-starter-kit/.ai/`) are documented here. Format loosely follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/):
+
+- **MAJOR** — a change that can break already-installed repos (e.g. renaming/removing a skill an
+  agent's commands depend on, restructuring `.ai/`).
+- **MINOR** — new context-skills, rules, or callable skills added in a backward-compatible way.
+- **PATCH** — wording/content fixes to existing files, no structural change.
+
+`ai-starter-kit/.ai/VERSION` always holds the current version. Installed repos track the version
+they last synced in their own `.ai/VERSION` (copied verbatim by `--copy`/`--update`) and record a
+per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by hand) so that
+`--update` can tell which files a repo customized versus which are still stock and safe to refresh.
+See the "Versioning & updates" section in `README.md` for how to cut a new version and how
+installed repos pick it up.
+
+## [1.0.0] - 2026-09-12
+
+Baseline: first version tracked under this scheme. Includes the context-skills
+(hexagonal-architecture, reactive-programming, testing-java, domain-modeling, observability,
+error-translation), the development-guidelines/auto-enrichment/session-identity-canary rules, the
+OpenSpec/spec-kit workflow skills, the commit-and-push and neo4j-architecture-graph skills, the PR
+template, and the installer's `--init/--copy/--scan/--agents/--sync/--check/--workflow/--openspec/
+--speckit/--graph/--statusline` commands.
