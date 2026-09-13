@@ -67,6 +67,53 @@ graph-rag/                      ← OPTIONAL Step 2: local Neo4j architecture gr
 
 ## Installation
 
+### The simplest way: a bootstrap script in the consuming repo (recommended)
+
+For a microservice repo, don't vendor this kit at all — drop a small bootstrap script in its root
+instead. It clones this repo fresh every time it runs and decides what to do on its own:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+AI_KIT_REPO_URL="${AI_KIT_REPO_URL:-https://github.com/leandroAmariles/ai-starter-kit.git}"
+AI_KIT_REF="${AI_KIT_REF:-main}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+git clone --quiet --depth 1 --branch "$AI_KIT_REF" "$AI_KIT_REPO_URL" "$TMP_DIR/kit"
+INSTALLER="$TMP_DIR/kit/install-ai-package.sh"
+chmod +x "$INSTALLER"
+
+if [[ -d "$REPO_ROOT/.ai" ]]; then
+  "$INSTALLER" --update "$REPO_ROOT"   # already installed -> refresh to the current version
+else
+  "$INSTALLER" --init "$REPO_ROOT"     # not installed yet -> first-install wizard
+fi
+```
+
+Save it as `ai-bootstrap.sh` at the repo root, `chmod +x` it, and commit it — that's the *only*
+kit-related file the microservice repo needs to keep. Running it:
+
+- **Not installed yet:** clones this repo and runs the interactive wizard (`--init`) — same
+  experience as running the installer by hand, just without needing a local checkout first.
+- **Already installed, any version:** clones this repo and runs `--update` (see "Versioning &
+  updates" below) — adds what's new, refreshes what you never customized, leaves your
+  customizations alone with a `*.new` sibling to merge by hand, regenerates the native agent files,
+  and validates the result. Safe to re-run any time, including when already current (it just
+  reports "up to date" and exits clean).
+
+Point `AI_KIT_REF` at a tag (e.g. `AI_KIT_REF=v1.0.0`) instead of `main` if a team wants to pin a
+specific version rather than always tracking the latest.
+
+### The manual way: clone this repo yourself
+
+Prefer a local checkout over the bootstrap script (e.g. to run `--copy`, `--scan`, `--agents`, etc.
+individually, or to hack on the kit itself)? Clone this repo and run `install-ai-package.sh`
+directly against your target repo — everything below assumes that setup.
+
 ### Checklist for applying this kit to a (new) project
 
 Follow this in order every time you install the kit into a repo — most steps are one command, but

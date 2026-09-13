@@ -15,6 +15,12 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.0.1] - 2026-09-12
+
+Docs only. README now documents the recommended bootstrap-script installation for consuming repos
+(clone this repo, run `--init` if not installed / `--update` if already installed) alongside the
+existing manual-checkout workflow. No `.ai/` content changed.
+
 ## [1.0.0] - 2026-09-12
 
 Baseline: first version tracked under this scheme. Includes the context-skills
