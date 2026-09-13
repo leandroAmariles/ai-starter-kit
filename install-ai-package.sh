@@ -1511,19 +1511,36 @@ prune_workflow() {
       ok "Keeping the OpenSpec skills/prompts (default)."
       ;;
     speckit|none)
+      # Prune the source (.ai/) AND every already-generated agent output that
+      # was copied verbatim from it — copy_dir_if_present only ever adds/
+      # overwrites, it never deletes, so a stale .claude/skills/openspec-*
+      # from before the workflow was switched (or, on --update, resurrected
+      # because a legacy repo had no manifest baseline recording the original
+      # prune) would otherwise linger forever even though .ai/ itself is clean.
       local removed=0 dir file
-      for dir in "$dest"/.ai/skills/openspec-*; do
+      for dir in "$dest"/.ai/skills/openspec-* \
+                 "$dest"/.github/skills/openspec-* \
+                 "$dest"/.claude/skills/openspec-* \
+                 "$dest"/.cursor/skills/openspec-*; do
         [[ -d "$dir" ]] || continue
         rm -rf "$dir"
         removed=1
       done
-      for file in "$dest"/.ai/prompts/opsx-*.prompt.md; do
+      for file in "$dest"/.ai/prompts/opsx-*.prompt.md \
+                  "$dest"/.github/prompts/opsx-*.prompt.md \
+                  "$dest"/.claude/commands/opsx-*.prompt.md \
+                  "$dest"/.cursor/commands/opsx-*.prompt.md; do
+        [[ -f "$file" ]] || continue
+        rm -f "$file"
+        removed=1
+      done
+      for file in "$dest"/.windsurf/workflows/openspec-*.md; do
         [[ -f "$file" ]] || continue
         rm -f "$file"
         removed=1
       done
       if [[ "$removed" -eq 1 ]]; then
-        ok "Removed the OpenSpec skills/prompts from $dest/.ai (workflow=$workflow)."
+        ok "Removed the OpenSpec skills/prompts from $dest/.ai and every already-generated agent output (workflow=$workflow)."
       fi
       ;;
     *)

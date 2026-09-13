@@ -15,6 +15,16 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.0.3] - 2026-09-12
+
+Fix: `prune_workflow` (used by `--workflow` and now also by `--update`, see 1.0.2) only ever pruned
+`.ai/skills/openspec-*` and `.ai/prompts/opsx-*` — the already-*generated* copies under
+`.claude/skills`, `.claude/commands`, `.github/skills`, `.github/prompts`, `.cursor/skills`,
+`.cursor/commands`, and `.windsurf/workflows` were never cleaned up, since `copy_dir_if_present`
+only adds/overwrites and never deletes. A repo switching away from OpenSpec (or a legacy repo
+hitting the 1.0.2 fix) could still see `/openspec-*` commands offered by its agent. `prune_workflow`
+now removes the matching paths in every one of those locations too.
+
 ## [1.0.2] - 2026-09-12
 
 Fix: `--update` on a repo that predates version tracking (no `.ai/.ai-manifest.json` yet) could
