@@ -15,6 +15,13 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.0.4] - 2026-09-12
+
+Docs/tooling. `ai-bootstrap.sh` was previously only shown as a code block in the README (nothing to
+actually download) — it's now a real, downloadable file at the repo root, and README's "Installation"
+section documents three ways to pull it into a consuming repo given this repo is private (`gh api`,
+`git clone` + copy, or `curl` with a personal access token). No `.ai/` content changed.
+
 ## [1.0.3] - 2026-09-12
 
 Fix: `prune_workflow` (used by `--workflow` and now also by `--update`, see 1.0.2) only ever pruned

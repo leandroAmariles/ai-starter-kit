@@ -5,9 +5,10 @@ architecture patterns, coding rules, and workflows **once**, in one agent-neutra
 generate the native configuration files for **GitHub Copilot, Claude, Cursor, Windsurf, and
 JetBrains AI** with a single script.
 
-Works for a personal project or an entire company: copy this folder, run the installer against
-your repo, and every supported AI agent starts a session already knowing your architecture,
-conventions, and workflows.
+Works for a personal project or an entire company: drop one small bootstrap script into your repo
+(see "Installation" below), run it, and every supported AI agent starts a session already knowing
+your architecture, conventions, and workflows. Re-running that same script later pulls whatever
+changed in this kit since — see "Versioning & updates".
 
 ## Why this exists
 
@@ -27,6 +28,7 @@ ai-starter-kit/
 ├── README.md                  ← this file
 ├── CHANGELOG.md               ← one entry per version — see "Versioning & updates" below
 ├── install-ai-package.sh      ← the installer (bash)
+├── ai-bootstrap.sh             ← the ONE file a consuming repo downloads/commits — see below
 └── .ai/                       ← canonical source — edit this, not the generated files
     ├── VERSION                 ← current kit version (SemVer); ships to every installed repo as-is
     ├── STARTUP.md              ← entry point the agent reads first
@@ -69,33 +71,39 @@ graph-rag/                      ← OPTIONAL Step 2: local Neo4j architecture gr
 
 ### The simplest way: a bootstrap script in the consuming repo (recommended)
 
-For a microservice repo, don't vendor this kit at all — drop a small bootstrap script in its root
-instead. It clones this repo fresh every time it runs and decides what to do on its own:
+For a microservice repo, don't vendor this kit at all — the repo only ever needs one small file,
+[`ai-bootstrap.sh`](./ai-bootstrap.sh) (checked into this repo, ~30 lines). Every time it runs, it
+clones this repo fresh and decides what to do on its own: `--init` (first-install wizard) if the
+target repo has no `.ai/` yet, or `--update` (see "Versioning & updates" below) if it does.
+
+**Get the file into a target repo once** — this repo is private, so a plain `curl` of the raw file
+won't work without a token; pick whichever of these you already have set up:
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
+# Option A — gh CLI (recommended: reuses your existing `gh auth login`, no token to manage)
+gh api repos/leandroAmariles/ai-starter-kit/contents/ai-bootstrap.sh --jq '.content' \
+  | base64 -d > ai-bootstrap.sh
 
-AI_KIT_REPO_URL="${AI_KIT_REPO_URL:-https://github.com/leandroAmariles/ai-starter-kit.git}"
-AI_KIT_REF="${AI_KIT_REF:-main}"
+# Option B — plain git (works anywhere git already clones this repo, e.g. your normal SSH key)
+git clone --quiet --depth 1 https://github.com/leandroAmariles/ai-starter-kit.git /tmp/ai-starter-kit \
+  && cp /tmp/ai-starter-kit/ai-bootstrap.sh . \
+  && rm -rf /tmp/ai-starter-kit
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
-
-git clone --quiet --depth 1 --branch "$AI_KIT_REF" "$AI_KIT_REPO_URL" "$TMP_DIR/kit"
-INSTALLER="$TMP_DIR/kit/install-ai-package.sh"
-chmod +x "$INSTALLER"
-
-if [[ -d "$REPO_ROOT/.ai" ]]; then
-  "$INSTALLER" --update "$REPO_ROOT"   # already installed -> refresh to the current version
-else
-  "$INSTALLER" --init "$REPO_ROOT"     # not installed yet -> first-install wizard
-fi
+# Option C — raw download with a personal access token (repo: scope), if you'd rather not use gh/git
+curl -fsSL -H "Authorization: token $GITHUB_TOKEN" \
+  https://raw.githubusercontent.com/leandroAmariles/ai-starter-kit/main/ai-bootstrap.sh \
+  -o ai-bootstrap.sh
 ```
 
-Save it as `ai-bootstrap.sh` at the repo root, `chmod +x` it, and commit it — that's the *only*
-kit-related file the microservice repo needs to keep. Running it:
+Then, in the target repo:
+
+```bash
+chmod +x ai-bootstrap.sh
+git add ai-bootstrap.sh   # commit it — the only kit-related file this repo needs to keep
+./ai-bootstrap.sh
+```
+
+Running it:
 
 - **Not installed yet:** clones this repo and runs the interactive wizard (`--init`) — same
   experience as running the installer by hand, just without needing a local checkout first.
@@ -105,8 +113,10 @@ kit-related file the microservice repo needs to keep. Running it:
   and validates the result. Safe to re-run any time, including when already current (it just
   reports "up to date" and exits clean).
 
-Point `AI_KIT_REF` at a tag (e.g. `AI_KIT_REF=v1.0.0`) instead of `main` if a team wants to pin a
-specific version rather than always tracking the latest.
+Set `AI_KIT_REF` (e.g. `AI_KIT_REF=v1.0.0 ./ai-bootstrap.sh`) to pin a specific tag instead of
+always tracking `main`. If this repo is ever made public, Option C works with a plain unauthenticated
+`curl` (drop the `-H "Authorization..."` header) and Option A/B no longer need any credentials
+either.
 
 ### The manual way: clone this repo yourself
 
