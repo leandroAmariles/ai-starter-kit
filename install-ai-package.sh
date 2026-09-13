@@ -609,6 +609,16 @@ do_update() {
   sync_manifest "$dest" report
   local conflicts="$LAST_SYNC_CONFLICTS"
 
+  # A repo that predates version tracking has no manifest recording that its
+  # workflow choice previously pruned openspec-*: sync_manifest sees those
+  # paths as simply missing (not "removed on purpose") and restores them. Redo
+  # the prune for the repo's own recorded choice so --update never resurrects
+  # a workflow's files the repo isn't using. Harmless (a no-op) when the
+  # manifest already tracked the deletion, and when the workflow is openspec.
+  local dest_workflow="openspec"
+  [[ -f "$dest/.ai/.workflow" ]] && dest_workflow="$(trim "$(cat "$dest/.ai/.workflow")")"
+  prune_workflow "$dest" "$dest_workflow"
+
   if [[ -f "$AI_SOURCE/templates/pull_request_template.md" && ! -f "$dest/.github/pull_request_template.md" ]]; then
     mkdir -p "$dest/.github"
     cp "$AI_SOURCE/templates/pull_request_template.md" "$dest/.github/pull_request_template.md"

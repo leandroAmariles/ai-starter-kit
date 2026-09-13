@@ -15,6 +15,15 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.0.2] - 2026-09-12
+
+Fix: `--update` on a repo that predates version tracking (no `.ai/.ai-manifest.json` yet) could
+resurrect `.ai/skills/openspec-*` and `.ai/prompts/opsx-*` even when that repo had already chosen
+`speckit`/`none` as its workflow — it had no baseline recording those paths as intentionally pruned,
+so the diff saw them as simply new. `--update` now re-applies the repo's own recorded workflow
+choice (`.ai/.workflow`) right after syncing, so a first `--update` on a legacy install prunes them
+straight back out (and every run after is a clean no-op, same as any other repo).
+
 ## [1.0.1] - 2026-09-12
 
 Docs only. README now documents the recommended bootstrap-script installation for consuming repos
