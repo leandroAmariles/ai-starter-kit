@@ -76,24 +76,16 @@ For a microservice repo, don't vendor this kit at all — the repo only ever nee
 clones this repo fresh and decides what to do on its own: `--init` (first-install wizard) if the
 target repo has no `.ai/` yet, or `--update` (see "Versioning & updates" below) if it does.
 
-**Get the file into a target repo once** — this repo is private, so a plain `curl` of the raw file
-won't work without a token; pick whichever of these you already have set up:
+**Get the file into a target repo once** — this repo is public, so a plain `curl` of the raw file
+works with no token or auth needed:
 
 ```bash
-# Option A — gh CLI (recommended: reuses your existing `gh auth login`, no token to manage)
-gh api repos/leandroAmariles/ai-starter-kit/contents/ai-bootstrap.sh --jq '.content' \
-  | base64 -d > ai-bootstrap.sh
-
-# Option B — plain git (works anywhere git already clones this repo, e.g. your normal SSH key)
-git clone --quiet --depth 1 https://github.com/leandroAmariles/ai-starter-kit.git /tmp/ai-starter-kit \
-  && cp /tmp/ai-starter-kit/ai-bootstrap.sh . \
-  && rm -rf /tmp/ai-starter-kit
-
-# Option C — raw download with a personal access token (repo: scope), if you'd rather not use gh/git
-curl -fsSL -H "Authorization: token $GITHUB_TOKEN" \
-  https://raw.githubusercontent.com/leandroAmariles/ai-starter-kit/main/ai-bootstrap.sh \
+curl -fsSL https://raw.githubusercontent.com/leandroAmariles/ai-starter-kit/main/ai-bootstrap.sh \
   -o ai-bootstrap.sh
 ```
+
+(If you already have `gh` or `git` set up, `gh api repos/leandroAmariles/ai-starter-kit/contents/ai-bootstrap.sh --jq '.content' | base64 -d > ai-bootstrap.sh`
+or a plain `git clone --depth 1` + `cp` work too — no credentials required for either now.)
 
 Then, in the target repo:
 
@@ -114,9 +106,7 @@ Running it:
   reports "up to date" and exits clean).
 
 Set `AI_KIT_REF` (e.g. `AI_KIT_REF=v1.0.0 ./ai-bootstrap.sh`) to pin a specific tag instead of
-always tracking `main`. If this repo is ever made public, Option C works with a plain unauthenticated
-`curl` (drop the `-H "Authorization..."` header) and Option A/B no longer need any credentials
-either.
+always tracking `main`.
 
 ### The manual way: clone this repo yourself
 
