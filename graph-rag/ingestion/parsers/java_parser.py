@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from tree_sitter import Node
 from tree_sitter_languages import get_language, get_parser
@@ -109,6 +110,11 @@ FEIGN_CLIENT_PATTERN = re.compile(
 FEIGN_CLIENT_ATTR_PATTERN = re.compile(r"(?:name|value)\s*=\s*\"([^\"]+)\"")
 FEIGN_CLIENT_BARE_PATTERN = re.compile(r"^\s*\"([^\"]+)\"\s*$")
 
+WEBCLIENT_OR_RESTTEMPLATE_MARKER_PATTERN = re.compile(r"\b(?:WebClient|RestTemplate)\b")
+BASE_URL_CALL_PATTERN = re.compile(r'\.baseUrl\s*\(\s*"(https?://[^"]+)"\s*\)')
+VALUE_URL_DEFAULT_PATTERN = re.compile(r'@Value\s*\(\s*"\$\{[^}":]+:(https?://[^"}]+)\}"\s*\)')
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0"}
+
 
 def _resolve_token(token: str, constants: dict[str, str]) -> str | None:
     """Resolve a Java expression fragment to a literal string, if possible.
@@ -204,6 +210,27 @@ def _extract_feign_target(source_text: str) -> str | None:
     return bare_match.group(1) if bare_match else None
 
 
+def _extract_webclient_targets(source_text: str) -> list[str]:
+    """Return hostnames called out via a literal WebClient/RestTemplate base
+    URL: either a hardcoded `.baseUrl("http://host:port")` or a `@Value`
+    property default (`@Value("${some.prop:http://host:port}")`). Only looked
+    for when the file actually references WebClient/RestTemplate. Same
+    "verify, don't fabricate" rule as `_extract_feign_target`: a URL that
+    isn't a literal (built from a runtime variable/method call) is skipped
+    rather than guessed, and a bare `localhost`/`127.0.0.1`/`0.0.0.0` default
+    is skipped too since it names no real service to link to (typically a
+    local-dev fallback for infra that lives outside this graph)."""
+    if not WEBCLIENT_OR_RESTTEMPLATE_MARKER_PATTERN.search(source_text):
+        return []
+    hosts: list[str] = []
+    for pattern in (BASE_URL_CALL_PATTERN, VALUE_URL_DEFAULT_PATTERN):
+        for match in pattern.finditer(source_text):
+            host = urlparse(match.group(1)).hostname
+            if host and host.lower() not in _LOCAL_HOSTS:
+                hosts.append(host)
+    return sorted(set(hosts))
+
+
 def _collect_relationships(declaration: Node, source: bytes) -> tuple[list[str], str | None]:
     implements: list[str] = []
     extends: str | None = None
@@ -271,6 +298,7 @@ def parse_java_file(path: str) -> dict | None:
             "stream_bindings_out": stream_out,
             "rest_endpoints": _extract_rest_endpoints(source_text, annotations),
             "feign_target": _extract_feign_target(source_text),
+            "webclient_targets": _extract_webclient_targets(source_text),
         }
     except Exception:
         print(f"WARN: Could not parse Java file {file_path}", file=sys.stderr)

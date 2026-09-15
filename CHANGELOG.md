@@ -15,6 +15,25 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.1.0] - 2026-09-15
+
+Graph-rag: `CALLS_SERVICE` now also fires for a `WebClient`/`RestTemplate` built off a **literal**
+base URL — a hardcoded `.baseUrl("http://host:port")` or a `@Value("${prop:http://host:port}")`
+default — not just `@FeignClient(name=...)`. The target hostname is verified against configured
+`PROJECT_PATHS` like Feign already was (linked to a real `:Project` node if it matches, else an
+`:ExternalService` node); a bare `localhost`/`127.0.0.1`/`0.0.0.0` default is skipped since it names
+no real service. Updated `.ai/skills/neo4j-architecture-graph/SKILL.md` to match (it previously told
+agents WebClient/RestTemplate calls were never captured).
+
+Docs: README's "Feeding more than one project into the same graph" section now also covers growing
+the graph by installing Step 2 independently in each microservice (rather than maintaining one
+central `PROJECT_PATHS` list) — point every repo's `graph-rag/.env` `NEO4J_URI` at the same Neo4j
+instance and each repo's own `phase1_scan.py` run safely adds/refreshes only its own scoped nodes.
+Documents that Kafka `:Topic` and `:Database` nodes already connect across independently-scanned
+projects for free (keyed by name, not by project), while the three explicit cross-project edges
+(`DEPENDS_ON_PROJECT`, verified `CALLS_SERVICE`, `SHARES_DATABASE`) still need an occasional combined
+scan listing every sibling path together. No `.ai/` rules/context changed.
+
 ## [1.0.6] - 2026-09-15
 
 Fix: `install-ai-package.sh`'s installer script itself, not `.ai/` content. `sync_manifest`'s

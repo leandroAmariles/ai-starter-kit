@@ -135,7 +135,8 @@ def _ingest_project(
 ) -> tuple[list[dict], int, tuple[set, set], list[tuple[str, str]]]:
     """Ingest one repository, scoped to `(group, project)`. Returns
     (parsed_classes with unscoped fqns, relations_created, provided/required
-    Maven coordinates, [(scoped_class_fqn, feign_target_name), ...])."""
+    Maven coordinates, [(scoped_class_fqn, target_service_name), ...] from
+    @FeignClient and/or a literal WebClient/RestTemplate base URL)."""
     if not (repo_root / ".git").exists():
         raise SystemExit(f"Not a Git repository: {repo_root} (project '{project}')")
 
@@ -201,7 +202,7 @@ def _ingest_project(
         ingestor.upsert_document(scoped)
 
     relations_created = 0
-    feign_targets: list[tuple[str, str]] = []
+    service_call_targets: list[tuple[str, str]] = []
     for parsed in parsed_classes:
         source_fqn = _scoped(group, project, parsed["fqn"])
         ingestor.link_belongs_to(source_fqn, project, group)
@@ -238,7 +239,9 @@ def _ingest_project(
 
         feign_target = parsed.get("feign_target")
         if feign_target:
-            feign_targets.append((source_fqn, feign_target))
+            service_call_targets.append((source_fqn, feign_target))
+        for webclient_target in parsed.get("webclient_targets", []):
+            service_call_targets.append((source_fqn, webclient_target))
 
     for parsed_doc in parsed_documents:
         ingestor.link_belongs_to(_scoped(group, project, parsed_doc["fqn"]), project, group)
@@ -269,7 +272,7 @@ def _ingest_project(
     )
 
     coordinates = read_project_coordinates(repo_root, list(final_inventory))
-    return parsed_classes, relations_created, coordinates, feign_targets
+    return parsed_classes, relations_created, coordinates, service_call_targets
 
 
 def main() -> None:
@@ -298,13 +301,13 @@ def main() -> None:
 
     all_parsed_classes: list[dict] = []
     coordinates_by_project: dict[str, tuple[set, set]] = {}
-    feign_targets_by_project: dict[str, list[tuple[str, str]]] = {}
+    service_call_targets_by_project: dict[str, list[tuple[str, str]]] = {}
 
     try:
         _run_setup_statements(ingestor)
 
         for project, repo_root in projects:
-            parsed_classes, _relations, coordinates, feign_targets = _ingest_project(
+            parsed_classes, _relations, coordinates, service_call_targets = _ingest_project(
                 ingestor, group, project, repo_root, args.reset
             )
             for parsed in parsed_classes:
@@ -312,7 +315,7 @@ def main() -> None:
                 scoped["fqn"] = _scoped(group, project, parsed["fqn"])
                 all_parsed_classes.append(scoped)
             coordinates_by_project[project] = coordinates
-            feign_targets_by_project[project] = feign_targets
+            service_call_targets_by_project[project] = service_call_targets
 
         # ── Cross-project edges: A DEPENDS_ON_PROJECT B iff A requires a Maven
         # coordinate that B publishes. Deterministic, no false positives, and
@@ -327,15 +330,16 @@ def main() -> None:
                     ingestor.upsert_project_dependency(project_a, project_b, group)
                     dependency_edges += 1
 
-        # ── CALLS_SERVICE: a @FeignClient(name="X") is only linked to a real
+        # ── CALLS_SERVICE: a @FeignClient(name="X"), or a literal WebClient/
+        # RestTemplate base URL whose hostname is X, is only linked to a real
         # :Project node when X matches a project actually configured in
         # PROJECT_PATHS (verified, like DEPENDS_ON_PROJECT above); otherwise
         # it links to an :ExternalService node, since the target wasn't
         # confirmed to be present in this graph.
         known_project_names = {name for name, _ in projects}
         service_call_edges = 0
-        for feign_targets in feign_targets_by_project.values():
-            for class_fqn, target_name in feign_targets:
+        for service_call_targets in service_call_targets_by_project.values():
+            for class_fqn, target_name in service_call_targets:
                 verified = target_name in known_project_names
                 ingestor.upsert_service_call(class_fqn, target_name, verified, group)
                 service_call_edges += 1

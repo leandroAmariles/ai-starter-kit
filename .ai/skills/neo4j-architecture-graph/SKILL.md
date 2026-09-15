@@ -35,8 +35,8 @@ Use the graph first when the task requires any of the following:
 | Inspecting annotations | finding classes annotated with `@Configuration`, `@Primary`, or an endpoint annotation |
 | Assessing change impact | identifying consumers of a class, port, or adapter before modifying it |
 | Cross-service impact (build-time) | if multiple projects are ingested, finding which other services depend on this one via Maven (`DEPENDS_ON_PROJECT`) before a breaking change |
-| Cross-service impact (runtime) | for services with **no** Maven coupling, finding which service produces/consumes a Kafka topic (`PRODUCES_TO`/`CONSUMES_FROM` a shared `:Topic`), calls another service via Feign (`CALLS_SERVICE`), or shares a database (`SHARES_DATABASE`) |
-| Understanding a class's integration surface | what topics a class produces to/consumes from, what HTTP routes it exposes (`rest_endpoints` property), what external service a `@FeignClient` targets |
+| Cross-service impact (runtime) | for services with **no** Maven coupling, finding which service produces/consumes a Kafka topic (`PRODUCES_TO`/`CONSUMES_FROM` a shared `:Topic`), calls another service via Feign/WebClient/RestTemplate (`CALLS_SERVICE`), or shares a database (`SHARES_DATABASE`) |
+| Understanding a class's integration surface | what topics a class produces to/consumes from, what HTTP routes it exposes (`rest_endpoints` property), what external service a `@FeignClient`/`WebClient`/`RestTemplate` call targets |
 
 Do not use it for simple file reads when the exact file path is known, for editing files, or for
 content-only searches that do not require relationships.
@@ -157,5 +157,5 @@ After a graph result identifies relevant files or relationships:
 | Using the graph to read a known file | Read the known file directly |
 | Assuming `DEPENDS_ON_PROJECT` covers runtime calls | It only reflects Maven/build-time dependency coordinates, not REST/messaging calls between services — use `PRODUCES_TO`/`CONSUMES_FROM`/`CALLS_SERVICE`/`SHARES_DATABASE` for those |
 | Assuming every Kafka topic is captured | Only `@KafkaListener`/`KafkaTemplate`/`ProducerRecord`/`KafkaHeaders.TOPIC` (spring-kafka) and `@Bean Consumer/Function/Supplier` + `StreamBridge.send(...)` (Spring Cloud Stream, resolved via `application*.yml`'s `spring.cloud.stream.bindings.*.destination`) are detected, and only when the topic name is a string literal or a `static final String` constant — a topic built at runtime from a variable is silently skipped, not guessed |
-| Assuming every REST call between services is captured | Only `@FeignClient(name=...)` is modeled as `CALLS_SERVICE` — `WebClient`/`RestTemplate` base URLs are usually built from injected config, not literals, so they aren't extracted (a false "no calls found" is possible; check source when a REST-based integration is expected but not in the graph) |
+| Assuming every REST call between services is captured | `@FeignClient(name=...)` and a **literal** `WebClient`/`RestTemplate` base URL (hardcoded `.baseUrl("http://host:port")` or a `@Value("${prop:http://host:port}")` default) are modeled as `CALLS_SERVICE`; a URL built from a runtime variable/method call is not (a false "no calls found" is possible; check source when a REST-based integration is expected but not in the graph) |
 | Adding graph credentials to source or instructions | Use `graph-rag/.env` (gitignored) or the configured MCP integration |

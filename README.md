@@ -270,6 +270,49 @@ If one project's `pom.xml` depends on a Maven coordinate another ingested projec
 with my other microservices" (see `graph-rag/README.md` for the full explanation and Cypher
 examples, including how to extend it to runtime/API-call detection later).
 
+**Growing the graph one independent microservice install at a time (no central list to maintain):**
+the recipe above assumes one checkout's `PROJECT_PATHS` lists every sibling repo by path — fine for
+a few services from one machine, but it means whoever adds a new microservice has to remember to
+edit that one `.env` and re-run the scan. The alternative: install this kit's Step 2 independently
+in *each* microservice, and have all of them write into the **same** Neo4j instead of each spinning
+up its own isolated container.
+
+1. Pick one repo (or a dedicated ops/infra repo) as the "hub" and run `--graph` there as normal —
+   this is the one that actually owns the running Neo4j container.
+2. In every other microservice, install the kit and run `--graph` too, but before its first
+   `phase1_scan.py`, point that repo's own `graph-rag/.env`'s `NEO4J_URI` at the hub's Neo4j instead
+   of its own (`bolt://<hub-host>:7687` — `localhost` if it's the same machine). Leave that repo's
+   own `PROJECT_PATHS` at the default `.` (just itself).
+3. Each repo now runs its own `graph-rag/.venv/bin/python ingestion/phase1_scan.py` independently,
+   whenever it wants to refresh — since every write is scoped to `(project, group)` (see
+   `reconcile_inventory` in `graph-rag/ingestion/graph_ingestor.py`), one project's scan can never
+   see or touch another project's nodes. The graph only ever grows; nothing already ingested is lost
+   by a sibling repo's own scan.
+
+Two relationship kinds connect across projects **for free**, incrementally, with no combined scan
+ever required: Kafka `:Topic` nodes and `:Database` nodes are keyed by name (+ `PROJECT_GROUP`), not
+by project, so if two independently-scanned services produce/consume the same topic or resolve to
+the same datasource, their classes/projects both point at the same shared node the moment each one
+is ingested — the messaging or data coupling becomes visible in the graph without any extra step.
+The one limitation: the three *explicit* cross-project edges — `DEPENDS_ON_PROJECT` (shared Maven
+coordinates), `CALLS_SERVICE` (a verified `@FeignClient`/WebClient/RestTemplate target — see below),
+and the convenience `SHARES_DATABASE` edge — are only computed among the projects listed in one
+single `phase1_scan.py` invocation's `PROJECT_PATHS`, so a purely decentralized per-repo scan won't
+compute new ones of those three against siblings it didn't list; run an occasional combined scan
+from any one checkout (its `PROJECT_PATHS` listing every sibling's local path, same recipe as above)
+if you want those specific edges kept current too.
+
+**Detecting outbound REST calls:** besides `@FeignClient(name="X")`, a class is also linked with
+`CALLS_SERVICE` when it builds a `WebClient`/`RestTemplate` off a literal base URL — either a
+hardcoded `.baseUrl("http://host:port")` or a `@Value("${some.prop:http://host:port}")` default —
+and that URL's hostname becomes the target (verified against a real `:Project` node if the hostname
+matches a configured project, otherwise an `:ExternalService` node, exactly like Feign). A bare
+`localhost`/`127.0.0.1`/`0.0.0.0` default is deliberately skipped rather than linked, since it names
+no real service (typically a local-dev fallback for infra outside the graph, e.g. a self-hosted ML
+inference endpoint) — consistent with this whole pipeline's "verify, don't fabricate" rule for
+relationships. A URL built from a runtime variable/method call (not a literal) is skipped for the
+same reason.
+
 To recap the two phases: **Phase 1** (the deterministic structural graph — classes, annotations,
 `IMPLEMENTS`/`DEPENDS_ON` edges) is what `--graph` automates end to end. **Phase 2** (one summary
 per class/document plus its embedding, what makes `graph_rag_query.py`'s semantic search possible)
