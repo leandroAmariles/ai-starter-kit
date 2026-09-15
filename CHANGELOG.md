@@ -15,6 +15,12 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.0.5] - 2026-09-15
+
+Docs only. This repo is now public: README's "Installation" section drops the `gh api`/token/private-repo
+instructions from 1.0.4 in favor of a plain unauthenticated `curl` of `ai-bootstrap.sh`, with `gh`/`git`
+kept as optional alternatives. No `.ai/` content changed.
+
 ## [1.0.4] - 2026-09-12
 
 Docs/tooling. `ai-bootstrap.sh` was previously only shown as a code block in the README (nothing to
