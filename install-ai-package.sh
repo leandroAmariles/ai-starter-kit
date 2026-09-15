@@ -577,7 +577,13 @@ if report:
 PYEOF
 )"
 
-  LAST_SYNC_CONFLICTS="$(printf '%s\n' "$output" | grep '^__RESULT__:' | cut -d: -f2)"
+  # `|| true`: in "quiet" mode (do_copy's call) $output never contains a
+  # __RESULT__: line at all (the python script only prints it under `if
+  # report:`), so grep finds no match and returns 1 — under `set -o
+  # pipefail`, that failure would otherwise propagate to this assignment and,
+  # under `set -e`, silently kill the whole script right here, before
+  # do_init/do_update ever reach prune_workflow/do_scan/do_agents.
+  LAST_SYNC_CONFLICTS="$(printf '%s\n' "$output" | grep '^__RESULT__:' | cut -d: -f2 || true)"
   LAST_SYNC_CONFLICTS="${LAST_SYNC_CONFLICTS:-0}"
 
   if [[ "$mode" == "report" ]]; then

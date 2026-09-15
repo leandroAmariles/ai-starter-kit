@@ -15,6 +15,22 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.0.6] - 2026-09-15
+
+Fix: `install-ai-package.sh`'s installer script itself, not `.ai/` content. `sync_manifest`'s
+`LAST_SYNC_CONFLICTS` line piped its python output through `grep '^__RESULT__:'` — but `do_copy`
+always calls `sync_manifest` in "quiet" mode, where the python helper never prints that marker at
+all (it's only emitted `if report:`). With `set -o pipefail` active, `grep` finding no match returned
+1, and because the pipeline sat inside a plain assignment under `set -e`, that silently killed the
+whole script right there — every single time, on every machine. In practice this meant `--copy` (and
+therefore `--init`, and `--agents`/`--sync`/`--workflow` whenever they had to copy `.ai/` first) died
+right after copying `.ai/`'s raw files, before ever reaching `prune_workflow`/`do_scan`/`do_agents`/
+`do_speckit`/`do_openspec`/`do_graph` — so a from-scratch `--init` (or `ai-bootstrap.sh` on a repo
+with no `.ai/` yet) silently installed nothing beyond the bare `.ai/` copy, regardless of which
+agent(s) or workflow were selected in the wizard. Fixed by appending `|| true` to that pipeline.
+Confirmed fixed end-to-end (agent generation, spec-kit install, and the Neo4j graph bootstrap all
+completing) on a fresh destination.
+
 ## [1.0.5] - 2026-09-15
 
 Docs only. This repo is now public: README's "Installation" section drops the `gh api`/token/private-repo
