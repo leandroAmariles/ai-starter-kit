@@ -212,6 +212,14 @@ each other's, and the installer maps what it could confirm by actually running e
 | `windsurf` | `windsurf` | *(not currently listed as a spec-kit integration)* |
 | `jetbrains` | *(no confirmed slug — a `junie` value exists in OpenSpec's list, unclear if it's the same product as "JetBrains AI Assistant")* | *(same uncertainty)* |
 
+`--speckit`/`--workflow speckit` also runs `specify extension add git` once per repo (after the
+per-agent `init` calls). Without it, `/speckit-specify` never creates a feature branch: current
+spec-kit versions moved branch creation out of the core command and into an optional
+`before_specify` hook (`.specify/extensions.yml`), which only this official "git" extension
+registers — a plain `specify init` does not set it up on its own. Safe to re-run (detects an
+already-installed extension and no-ops); if it fails for some other reason, the warning gives you
+the exact command to run by hand from the repo.
+
 For the two unconfirmed cases, the installer prints a warning instead of guessing wrong — run
 `openspec init --help` or `specify integration list` from your repo to check current options.
 

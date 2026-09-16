@@ -15,6 +15,20 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.1.1] - 2026-09-15
+
+Fix: `--speckit`/`--workflow speckit` now also runs `specify extension add git` once per repo,
+right after the per-agent `specify init` calls. Root cause: current spec-kit versions moved feature
+branch creation out of the `/speckit-specify` core command entirely and into an optional
+`before_specify` hook, registered via `.specify/extensions.yml` — only this official "git" extension
+sets that up; a plain `specify init --integration <agent>` does not. Without it, every
+`/speckit-specify` run silently did all of its spec/plan/tasks/implementation work as uncommitted
+changes on whatever branch was already checked out (main, if that's what was active), with no branch
+ever created and no warning that one wasn't. Confirmed end-to-end on a fresh repo: `--workflow
+speckit` now installs the extension, the `before_specify` hook fires, and `/speckit-specify` creates
+a real feature branch. Idempotent — re-running against an already-extended repo detects it and
+no-ops instead of erroring.
+
 ## [1.1.0] - 2026-09-15
 
 Graph-rag: `CALLS_SERVICE` now also fires for a `WebClient`/`RestTemplate` built off a **literal**

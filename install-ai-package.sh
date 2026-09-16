@@ -1628,6 +1628,26 @@ do_speckit() {
     fi
   done
 
+  # Without this, spec-kit's own /speckit-specify never creates a feature
+  # branch: recent spec-kit versions moved that out of the core command and
+  # into an optional `before_specify` hook (see .specify/extensions.yml),
+  # which only this "git" extension registers — plain `specify init` does
+  # not. Repo-level, not per-agent (regenerates the hook-invoking skill/
+  # command files for whichever agent integrations are already installed).
+  # Idempotent: `extension add` exits non-zero with "already installed" on a
+  # repo that already has it (e.g. a --workflow speckit re-run) — treated as
+  # a no-op, not a failure.
+  local extension_output
+  if extension_output="$(cd "$dest" && $runner extension add git 2>&1)"; then
+    ok "Installed spec-kit's git branching extension (creates/switches to a feature branch automatically before /speckit-specify)."
+  elif grep -qi "already installed" <<< "$extension_output"; then
+    info "spec-kit's git branching extension is already installed — leaving it as-is."
+  else
+    warn "Could not install spec-kit's git branching extension automatically. Without it, /speckit-specify will not" \
+         "create a feature branch on its own. From $dest, run: $runner extension add git"
+    printf '%s\n' "$extension_output" | sed 's/^/    /'
+  fi
+
   ensure_gitignore_entry "$dest" "specs/*/.token-usage.json" \
     "Per-spec AI agent token usage (local telemetry written by ~/.claude or ~/.copilot/statusline.py; not source)"
 }
