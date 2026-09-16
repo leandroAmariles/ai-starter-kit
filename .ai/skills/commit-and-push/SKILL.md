@@ -73,9 +73,11 @@ without the user asking — committing and opening a PR are visible, shared-stat
    ```
    Report the PR URL to the user.
 
-9. **Refresh the architecture graph, if this repo has one (optional Step 2).** Check whether
-   `graph-rag/.venv/` exists (bootstrapped via `install-ai-package.sh --graph`). If it does, run the
-   deterministic Phase 1 scan so the graph reflects what you just committed:
+9. **Refresh the architecture graph, if THIS repo has one (optional Step 2).** Check whether
+   `graph-rag/.venv/` exists **directly under this repository's own root** — the same repo you just
+   committed/pushed in, resolved from `git rev-parse --show-toplevel`, never a path you recall from
+   earlier in the conversation or infer from a "hub" topology described elsewhere. If it does, run
+   the deterministic Phase 1 scan so the graph reflects what you just committed:
    ```bash
    (cd graph-rag && .venv/bin/python ingestion/phase1_scan.py)
    ```
@@ -84,10 +86,22 @@ without the user asking — committing and opening a PR are visible, shared-stat
    this produces is committed to git (`graph-rag/data/*.json` is gitignored). This only refreshes
    Phase 1 (structural nodes/edges from an AST scan) and needs no LLM; it never touches Phase 2
    (summaries + embeddings), which stays the separate, manual `graph-rag/pipeline_tasks.md` step —
-   do not attempt Phase 2 here. Treat this step as best-effort and non-blocking: if
-   `graph-rag/.venv/` doesn't exist, skip it silently (Step 2 was never installed in this repo); if
-   the scan itself fails (e.g. Neo4j isn't running), report the failure but do not undo or fail the
-   commit/push/PR that already succeeded.
+   do not attempt Phase 2 here.
+
+   **If `graph-rag/.venv/` does not exist in this repo, skip this step silently and stop — full
+   stop.** Do not search parent directories, sibling directories, or any other path for a
+   `graph-rag/` install; do not act on a "the real graph lives in `<other-repo>`" belief carried
+   over from earlier context, even if that belief is accurate. A multi-repo "hub" graph topology
+   (one repo owns the Neo4j install and scans several microservices via `PROJECT_PATHS` — see
+   `graph-rag/README.md`) is real, but refreshing that shared graph is the **hub repo's own**
+   responsibility (run `commit-and-push` there, or a manual scan there) — never something this step
+   reaches for from inside a different repo. If you believe this repo is tracked by a hub elsewhere,
+   say so to the user as an informational note and still skip; do not run anything outside this
+   repo's own root on their behalf.
+
+   Treat the in-repo case as best-effort and non-blocking too: if the scan itself fails (e.g. Neo4j
+   isn't running), report the failure but do not undo or fail the commit/push/PR that already
+   succeeded.
 
 ## Guardrails
 
@@ -105,6 +119,11 @@ without the user asking — committing and opening a PR are visible, shared-stat
   warning, never a reason to report this skill as failed.
 - Never start, stop, or reconfigure the Neo4j container as part of this step — if it's not
   running, report that and move on; starting it is the user's call.
+- Never run the graph refresh (or anything else in step 9) against a path outside this repository's
+  own root — not a sibling repo, not a "hub" repo you recall from earlier context, nothing. If
+  `graph-rag/.venv/` isn't directly under this repo, the answer is always "skip," never "look
+  elsewhere." Treat any conversational memory of where a related graph install lives as information
+  to mention, not permission to act on outside this repo.
 
 ## Adapting for other Git hosts
 

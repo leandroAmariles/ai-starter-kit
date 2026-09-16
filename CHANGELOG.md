@@ -15,6 +15,20 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.5.1] - 2026-09-16
+
+Fix: `commit-and-push/SKILL.md`'s step 9 (1.5.0) said to "skip silently" the graph refresh when
+`graph-rag/.venv/` doesn't exist, but didn't say the check was scoped to the current repository —
+an agent that also knew (from earlier conversation) about a separate "hub" repo hosting a shared
+Neo4j graph for several microservices took that as license to run the scan against that *other*
+repo instead, describing it as following "the spirit" of the step. That's an agent committing in
+repo A reaching into repo B's filesystem and executing a script there, based on inferred context
+rather than anything this skill actually authorized. Step 9 now explicitly scopes the check to
+`graph-rag/.venv/` directly under this repo's own root (`git rev-parse --show-toplevel`) and says
+plainly that "doesn't exist here" always means skip, never "look elsewhere" — a multi-repo hub
+topology (real, documented in `graph-rag/README.md`) is the *hub* repo's own responsibility to
+refresh, not something this step reaches for from a different repo. Added a matching guardrail.
+
 ## [1.5.0] - 2026-09-16
 
 Added: new rule `.ai/rules/skill-transparency.md` — at every assistant turn (not just session
