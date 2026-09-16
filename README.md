@@ -427,9 +427,11 @@ in your repo (GitHub's native convention — it also pre-fills the description b
 PR from the web UI). The `commit-and-push` skill uses that same file: ask the agent to "commit and
 push this" or "open a PR" and it stages the relevant files, writes a Conventional Commits message,
 pushes, and runs `gh pr create` with the template filled in — never against the default branch,
-never force-pushing, and never checking a box it didn't actually verify. See
-`.ai/skills/commit-and-push/SKILL.md` for the full guardrails (and how to adapt the last step for
-GitLab/Bitbucket instead of GitHub's `gh` CLI).
+never force-pushing, and never checking a box it didn't actually verify. If this repo also has
+Step 2 installed (`graph-rag/.venv/` present), it finishes by re-running the Phase 1 architecture
+scan so the graph reflects what was just committed — best-effort, never blocking the commit/push/PR
+if the graph isn't running. See `.ai/skills/commit-and-push/SKILL.md` for the full guardrails (and
+how to adapt the last step for GitLab/Bitbucket instead of GitHub's `gh` CLI).
 
 ### Auto-enrichment
 
@@ -440,17 +442,29 @@ your approval before touching anything — it never edits `.ai/` silently. See
 
 ### Session identity canary
 
-`.ai/rules/session-identity-canary.md` is a small, self-check mechanism against context
-degradation on long sessions: at the first turn of a new session, the agent asks for your
-preferred name, then prefixes every later response with `<name>:`. If that prefix ever goes
-missing, changes unprompted, or looks wrong, treat it as a signal that the agent's context has
-drifted (e.g. after a very long session, a compaction, or a broken tool call) and ask it to
-re-confirm your name before trusting further repository changes.
+`.ai/rules/session-identity-canary.md` is a small self-check against context degradation on long
+sessions: at the first assistant turn of a new session, before any repository work, the agent
+prints a fixed line ("🔧 ai-starter-kit rules loaded: ...") naming the rule files it can see under
+`.ai/rules/`. If asked later "what rules are active?", it should answer from what's actually in its
+context, not by re-reading this file. If it can't recall the list, or the list looks wrong, treat
+that as a signal the agent's context has drifted (e.g. after a very long session or a compaction)
+and be cautious about trusting further repository changes until it re-confirms.
 
-It costs one extra question at the start of a session in exchange for a cheap, always-visible
-signal that the instructions in `.ai/` are still being honored. Delete
-`.ai/rules/session-identity-canary.md` if you don't want this behavior — like every file under
-`.ai/rules/`, removing it takes effect for every agent the next time you run `--sync`.
+It costs one line at the start of a session in exchange for a cheap, always-visible signal that the
+instructions in `.ai/` are still being honored. Delete `.ai/rules/session-identity-canary.md` if you
+don't want this behavior — like every file under `.ai/rules/`, removing it takes effect for every
+agent the next time you run `--sync`.
+
+### Skill usage transparency
+
+`.ai/rules/skill-transparency.md` makes the agent disclose, at *every* turn (not just the first),
+which callable skill (`.ai/skills/*`) it's invoking and which context-skill(s)
+(`.ai/context/skills/*`) it's actually drawing on for that response — or say "no skills used this
+turn" when neither applies. This is separate from the once-per-session identity canary above: it's
+about per-response transparency into which documented workflow/pattern is shaping the current
+answer, useful for auditing whether natural-language requests are actually being routed to the
+right skill (see `.ai/STARTUP.md`'s "AI Directive"). Delete the file to disable it, same as any
+other rule.
 
 ## Versioning & updates
 

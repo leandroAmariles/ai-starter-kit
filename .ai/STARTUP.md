@@ -26,7 +26,8 @@ This repository contains a canonical, portable startup package for AI coding age
 | `<AI_ROOT>/context/skills/domain-modeling.md` | Strict domain objects, explicit attributes, MapStruct |
 | `<AI_ROOT>/rules/development-guidelines.md` | Team standards: naming, structure, tools |
 | `<AI_ROOT>/rules/auto-enrichment.md` | Protocol to auto-feed `<AI_ROOT>/` with new patterns |
-| `<AI_ROOT>/rules/session-identity-canary.md` | Context-integrity self-check (ask for a name, prefix every response with it) |
+| `<AI_ROOT>/rules/session-identity-canary.md` | Context-integrity self-check (print a fixed rules-loaded line at session start) |
+| `<AI_ROOT>/rules/skill-transparency.md` | Disclose, every turn, which callable/context skill(s) the response draws on |
 | `graph-rag/README.md` | OPTIONAL Step 2 — local Neo4j architecture graph: setup, multi-project config, cross-service edges |
 
 ## 4. Callable skills & Autonomous Invocation

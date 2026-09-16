@@ -73,6 +73,22 @@ without the user asking — committing and opening a PR are visible, shared-stat
    ```
    Report the PR URL to the user.
 
+9. **Refresh the architecture graph, if this repo has one (optional Step 2).** Check whether
+   `graph-rag/.venv/` exists (bootstrapped via `install-ai-package.sh --graph`). If it does, run the
+   deterministic Phase 1 scan so the graph reflects what you just committed:
+   ```bash
+   (cd graph-rag && .venv/bin/python ingestion/phase1_scan.py)
+   ```
+   (`.venv/Scripts/python.exe` on Windows.) Run this after the commit exists (so the scan sees the
+   final state of the code) — before or after the push/PR steps above doesn't matter, since nothing
+   this produces is committed to git (`graph-rag/data/*.json` is gitignored). This only refreshes
+   Phase 1 (structural nodes/edges from an AST scan) and needs no LLM; it never touches Phase 2
+   (summaries + embeddings), which stays the separate, manual `graph-rag/pipeline_tasks.md` step —
+   do not attempt Phase 2 here. Treat this step as best-effort and non-blocking: if
+   `graph-rag/.venv/` doesn't exist, skip it silently (Step 2 was never installed in this repo); if
+   the scan itself fails (e.g. Neo4j isn't running), report the failure but do not undo or fail the
+   commit/push/PR that already succeeded.
+
 ## Guardrails
 
 - Never commit, push, or open a PR against the repository's default branch.
@@ -84,6 +100,11 @@ without the user asking — committing and opening a PR are visible, shared-stat
 - If a PR already exists for the branch, do not create a second one; report the existing one.
 - Never invent a token-usage figure for the PR body — only include it when
   `specs/<branch>/.token-usage.json` actually exists, and always copy its numbers verbatim.
+- Never let the graph refresh (step 9) block, delay, or roll back the commit/push/PR — it runs
+  after they've already succeeded, only when `graph-rag/.venv/` exists, and a failure there is a
+  warning, never a reason to report this skill as failed.
+- Never start, stop, or reconfigure the Neo4j container as part of this step — if it's not
+  running, report that and move on; starting it is the user's call.
 
 ## Adapting for other Git hosts
 

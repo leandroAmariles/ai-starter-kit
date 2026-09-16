@@ -5,33 +5,42 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
-from tree_sitter import Node
-from tree_sitter_languages import get_language, get_parser
+from tree_sitter import Node, Query, QueryCursor
+from tree_sitter_language_pack import get_language, get_parser
 
 LANGUAGE = get_language("java")
 PARSER = get_parser("java")
 
-PACKAGE_QUERY = LANGUAGE.query(
-    """
-    (package_declaration
-      (scoped_identifier) @package)
-    """
+PACKAGE_QUERY = QueryCursor(
+    Query(
+        LANGUAGE,
+        """
+        (package_declaration
+          (scoped_identifier) @package)
+        """,
+    )
 )
 
-IMPORT_QUERY = LANGUAGE.query(
-    """
-    (import_declaration
-      (scoped_identifier) @import)
-    """
+IMPORT_QUERY = QueryCursor(
+    Query(
+        LANGUAGE,
+        """
+        (import_declaration
+          (scoped_identifier) @import)
+        """,
+    )
 )
 
-DECLARATION_QUERY = LANGUAGE.query(
-    """
-    (class_declaration) @decl
-    (interface_declaration) @decl
-    (enum_declaration) @decl
-    (record_declaration) @decl
-    """
+DECLARATION_QUERY = QueryCursor(
+    Query(
+        LANGUAGE,
+        """
+        (class_declaration) @decl
+        (interface_declaration) @decl
+        (enum_declaration) @decl
+        (record_declaration) @decl
+        """,
+    )
 )
 
 TYPE_MAPPING = {
@@ -258,21 +267,23 @@ def parse_java_file(path: str) -> dict | None:
             print(f"WARN: Could not parse Java file {file_path}", file=sys.stderr)
             return None
 
-        package_matches = PACKAGE_QUERY.captures(root)
-        imports = [_node_text(node, source) for node, _ in IMPORT_QUERY.captures(root)]
-        declarations = DECLARATION_QUERY.captures(root)
+        package_matches = PACKAGE_QUERY.captures(root).get("package", [])
+        imports = [
+            _node_text(node, source) for node in IMPORT_QUERY.captures(root).get("import", [])
+        ]
+        declarations = DECLARATION_QUERY.captures(root).get("decl", [])
 
         if not declarations:
             return None
 
-        declaration = declarations[0][0]
+        declaration = declarations[0]
         class_name = _node_text(declaration.child_by_field_name("name"), source)
         class_type = TYPE_MAPPING.get(declaration.type)
         if not class_name or class_type is None:
             print(f"WARN: Could not extract Java declaration from {file_path}", file=sys.stderr)
             return None
 
-        package_name = _node_text(package_matches[0][0], source) if package_matches else ""
+        package_name = _node_text(package_matches[0], source) if package_matches else ""
         annotations = _collect_annotation_names(declaration, source)
         implements, extends = _collect_relationships(declaration, source)
         fqn = f"{package_name}.{class_name}" if package_name else class_name

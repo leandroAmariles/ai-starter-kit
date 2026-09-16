@@ -15,6 +15,28 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.5.0] - 2026-09-16
+
+Added: new rule `.ai/rules/skill-transparency.md` — at every assistant turn (not just session
+start), the agent discloses which callable skill (`.ai/skills/*`) it's invoking and which
+context-skill(s) (`.ai/context/skills/*`) it's actually drawing on for that response, or says
+explicitly that none apply. Gets concatenated into every agent's main file automatically via the
+existing `.ai/rules/*.md` mechanism — no installer changes needed. While adding it, found and fixed
+the same stale description in three places (`README.md`, `.ai/rules/README.md`, `.ai/STARTUP.md`):
+all three still described `session-identity-canary.md` as "ask for a name, prefix every response
+with it," which is not what the file has done for a while now (it prints a fixed rules-loaded line
+at session start instead) — updated all three to match the actual current behavior.
+
+Added: `commit-and-push/SKILL.md` gained a step 9 — if `graph-rag/.venv/` exists in the repo (Step 2
+already installed), it re-runs the deterministic Phase 1 architecture scan
+(`ingestion/phase1_scan.py`) after the commit, so the Neo4j graph reflects what was just committed.
+Best-effort and non-blocking: skipped silently if Step 2 was never installed, and a scan failure
+(e.g. Neo4j not running) is reported without failing the commit/push/PR that already succeeded.
+Nothing it produces needs to be committed (`graph-rag/data/*.json` is gitignored), and it never
+starts/stops/reconfigures the Neo4j container itself. Phase 2 (summaries + embeddings) is
+unaffected — still the separate, manual, LLM-driven `graph-rag/pipeline_tasks.md` step. Updated the
+root `README.md` and `.ai/skills/README.md` to describe this.
+
 ## [1.4.0] - 2026-09-16
 
 Fix (critical, pre-existing, not introduced by the previous 1.3.0 fixes): `install-ai-package.sh`'s
