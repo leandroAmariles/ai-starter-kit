@@ -15,6 +15,113 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.4.0] - 2026-09-16
+
+Fix (critical, pre-existing, not introduced by the previous 1.3.0 fixes): `install-ai-package.sh`'s
+`_progress_bar()` ended with a bare `[[ "$current" -ge "$total" ]] && printf '\n'`. Under this
+script's `set -euo pipefail`, a bare `[[ cond ]] && cmd` as a function's *last* statement makes the
+whole function return that failing exit code the moment `cond` is false — and since `errexit`
+treats a plain (unguarded) function call the same as any other simple command, that silently killed
+the entire script the first time a progress bar was drawn below 100% (i.e. on effectively every run).
+This was invisible in every test run today because `_progress_bar` early-returns via `[[ -t 1 ]] ||
+return 0` when stdout isn't a TTY — exactly the case for scripted/CI invocations, but *not* for a
+real interactive terminal, which is the primary way people actually run `--init`/`--scan`/`--agents`/
+`--sync`/`--update`. Confirmed by extracting the function and reproducing the silent-death with the
+TTY guard bypassed. Fixed by using `if ... fi` instead of the bare `&&`. Audited every other function
+in the file for the same "bare `&&`/`||` as the last statement" shape; the only two others that had
+it (`detect_cicd`, `check_skill_frontmatter`) are already safe because every call site wraps them
+(`"$(detect_cicd ... || true)"`, `if ! check_skill_frontmatter ...`).
+
+Fix: the new `cleanup_stale_openspec_static()` helper added in 1.3.0 had the exact same bug in its
+own trailing `[[ "$removed" -eq 1 ]] && ok "..."` line — caught immediately via live testing once a
+scenario made `$removed` stay `0` for an agent (e.g. `github-copilot` in the `--tools` list, or a
+second `--openspec` run after the first already cleaned up). Fixed the same way, and also refactored
+the function to self-guard on the real CLI's own marker directory (`.claude/commands/opsx/`,
+`.cursor/commands/opsx/`, `.devin/skills/`) rather than deleting unconditionally. That refactor also
+fixes a second, related bug found by the same audit: `--sync`/`--update`/a second `--agents` call
+unconditionally re-copies this kit's static `.ai/prompts`/`.ai/skills` snapshot, which was silently
+resurrecting the exact stale `opsx-*`/`openspec-*` files `--openspec` had just removed. The cleanup
+call now also runs at the end of `generate_claude()`/`generate_cursor()`/`generate_windsurf()`
+themselves, so it's re-applied (and stays a no-op before `--openspec` has ever run) on every
+regeneration, not just once right after `--openspec`.
+
+Fix: investigated the `.windsurf/` vs `.devin/` question flagged in 1.3.0's changelog. Confirmed
+directly against OpenSpec CLI 1.13.0 (`openspec init --help`): `windsurf` is now only a deprecated,
+backward-compatible alias — the real, listed `--tools` value is `devin`, and running either produces
+identical output for an integration the CLI itself calls "Devin Desktop (formerly Windsurf)", writing
+`openspec-*/SKILL.md` + `opsx-*.md` entirely under **`.devin/`**, never under `.windsurf/` (it even
+self-migrates its own old `.windsurf/workflows/openspec-*.md` output from before this rename).
+`openspec_tool_for()` now maps this kit's `windsurf` agent to the `devin` slug directly (more
+future-proof than relying on a documented-deprecated alias). This is scoped to OpenSpec's own
+generated output only — this kit's separate, non-OpenSpec Windsurf conventions (`.windsurfrules`,
+`.windsurf/rules/*`, `.windsurf/workflows/commit-and-push.md` /
+`.windsurf/workflows/neo4j-architecture-graph.md`) are left exactly as they were; whether the
+underlying editor itself has also renamed those conventions is unconfirmed, so nothing there was
+changed. `prune_workflow()` (switching away from `openspec`) now also removes the real CLI's own
+output — `.claude/commands/opsx/`, `.cursor/commands/opsx/`, and `.devin/` — which it previously
+never did, leaving those behind forever after a workflow switch. `--check` gained a corresponding
+`.devin/`-aware duplicate-output warning (previously it incorrectly compared two globs both inside
+`.windsurf/workflows/`, which could never both be true). Root `README.md` and
+`.ai/prompts/README.md` updated to describe the confirmed `.devin/` paths and the rename.
+
+## [1.3.0] - 2026-09-16
+
+Fix: `.ai/skills/openspec-explore/SKILL.md` and `.ai/prompts/opsx-explore.prompt.md` had drifted —
+the skill carried a full "Handling Different Entry Points" section (worked examples with ASCII
+diagrams for a vague idea, a specific problem, mid-implementation, and comparing options) and a
+richer "Ending Discovery" summary format that the prompt/command version was missing entirely.
+Anyone invoking explore mode via `/opsx-explore` got a materially thinner experience than via the
+`openspec-explore` skill or natural language, despite `.ai/prompts/README.md` describing these files
+as mirrors of each other. Brought `opsx-explore.prompt.md` back to parity; only the command-specific
+`**Input**` block and the "read the mentioned change's artifacts" line remain prompt-only, both
+intentional.
+
+Fix: running `install-ai-package.sh --openspec <agents> <repo>` (the real OpenSpec CLI) never
+removed this kit's own static `opsx-*` command files it had already generated at a *different* path
+than the CLI's own output (`.claude/commands/opsx-*.prompt.md` vs. the CLI's
+`.claude/commands/opsx/*`; `.cursor/commands/opsx-*.prompt.md` vs. `.cursor/commands/opsx/*`;
+`.windsurf/workflows/openspec-*.md` vs. the CLI's `opsx-*.md` there) — `openspec init --force` only
+overwrites paths it recognizes as its own, so the two sets lingered side by side indefinitely with
+nothing indicating which was current. `do_openspec` now removes the stale static files for
+Claude/Cursor/Windsurf right after a successful CLI run (Copilot is left alone — no confirmed CLI
+output path to compare against). `--check` also now warns if both sets are already present (e.g. an
+install from before this fix, or a manual `openspec init` run), so it's not silently missed.
+
+While testing that cleanup live, found and documented (not yet acted on further) that the current
+OpenSpec CLI lists its `windsurf` integration as "Devin Desktop (formerly Windsurf)" and, in that
+same run, uses **three different command-naming conventions per agent** for the exact same
+workflow: `/opsx:propose` for Claude Code, `/opsx-propose` for Cursor, `/openspec-propose` for
+Windsurf/Devin. `STARTUP.md`'s routing table previously asserted one universal `/opsx-<name>` syntax
+(itself wrong — it had said `/openspec-<name>`, matching none of the real, generated command files);
+it now states the column is this kit's own static naming, calls out that it changes per agent once
+`--openspec` has actually run, and points to the skill name / natural language as the naming-agnostic
+fallback. The root `README.md`'s two `/openspec-propose` examples were the same bug and are fixed
+the same way. The `.windsurf/` vs. `.devin/` directory question itself is out of scope for this
+fix — flagged for a follow-up since it touches this kit's own agent-name mapping, not just wording.
+
+## [1.2.0] - 2026-09-16
+
+Fix: `STARTUP.md`'s "Callable Skills & Autonomous Invocation" section — the directive that tells the
+agent to map natural-language requests to a skill on its own, plus the skill-routing table — was
+never actually reaching any agent. `STARTUP.md` is copied into the destination's `.ai/STARTUP.md`
+by `--copy`, but `combine_context_and_rules()` (which builds every agent's real, auto-loaded main
+file — `CLAUDE.md`, `.github/copilot-instructions.md`, `.cursorrules`, `.windsurfrules`,
+`.aiassistant/rules/project.md`) only ever concatenated `.ai/context/README.md` +
+`.ai/rules/*.md`. `STARTUP.md` itself is never read automatically by any agent, so its "AI
+Directive" and routing table were dead content — most consequential for Cursor/JetBrains/Copilot,
+which (unlike Claude Code) have no confirmed native "discover and proactively invoke a skill"
+mechanism of their own to fall back on.
+
+`STARTUP.md`'s section 4 is now wrapped in `<!-- ai-starter-kit:startup-routing:start/end -->`
+markers; `combine_context_and_rules()` takes a 4th argument (each `generate_<agent>()` now passes
+`$dest/.ai/STARTUP.md`), extracts that marked block, and appends it as a "Callable Skills &
+Autonomous Invocation" section to every agent's main file — inside the existing managed section, so
+`--sync`/`--update` keep it current automatically. Also fixed `STARTUP.md`'s own "Receives prompt
+files?" table, which incorrectly said Claude and Cursor don't receive prompt files (they do — for
+years, wrongly contradicting the root `README.md` and `.ai/prompts/README.md`, and the actual
+`generate_claude`/`generate_cursor` behavior which copies `.ai/prompts` into
+`.claude/commands`/`.cursor/commands`).
+
 ## [1.1.1] - 2026-09-15
 
 Fix: `--speckit`/`--workflow speckit` now also runs `specify extension add git` once per repo,

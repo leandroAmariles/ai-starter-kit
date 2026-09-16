@@ -65,7 +65,9 @@ graph-rag/                      ← OPTIONAL Step 2: local Neo4j architecture gr
 - **Context-skills** (`.ai/context/skills/`) are read automatically, every session — they're passive
   knowledge (e.g. "this is how we structure hexagonal architecture").
 - **Callable skills** (`.ai/skills/`) are explicit workflows the agent runs on request, either via
-  natural language or a `/skill-name` command (e.g. `/openspec-propose` to start planning a change).
+  natural language, the skill's own name (e.g. `openspec-propose`, for agents with native skill
+  discovery), or its mirrored `/opsx-propose`-style command from `.ai/prompts/` (see the table below
+  for which agents receive which).
 
 ## Installation
 
@@ -192,7 +194,7 @@ pick one, or neither:
 | What ships in this kit as a default/fallback | Static `.ai/skills/openspec-*` + `.ai/prompts/opsx-*`, a frozen snapshot of the `openspec` CLI's own generated output | Nothing static — always delegated to the official CLI |
 | What actually makes it work | Run `--openspec <agents> <repo>` — this runs the real `openspec init --tools <slug> --force` CLI (via `npx` if not installed), which creates **`openspec/config.yaml` + `changes/`** (the static skill files alone have nothing to act on without this) and overwrites the frozen snapshot with your installed CLI's current version | Run `--speckit <agents> <repo>` — runs `specify init --here --force --non-interactive --integration <slug>` (via `uv`/`uvx` if not installed) |
 | Workflow | propose → apply → archive | constitution → specify → clarify → plan → tasks → analyze → implement |
-| Where its files land | Wherever `openspec init --tools <slug>` puts them per agent (confirmed: `.claude/skills/openspec-*` + `.claude/commands/opsx/*`, `.cursor/skills/openspec-*` + `.cursor/commands/opsx/*`, `.windsurf/skills/openspec-*` + `.windsurf/workflows/opsx-*`) — until you run `--openspec`, only the static snapshot from `.ai/skills/openspec-*`/`.ai/prompts/opsx-*` is present | Wherever `specify init --integration <agent>` puts them (confirmed: `.github/skills/speckit-*` for Copilot, `.claude/skills/speckit-*` for Claude) |
+| Where its files land | Wherever `openspec init --tools <slug>` puts them per agent (confirmed against CLI 1.13.0: `.claude/skills/openspec-*` + `.claude/commands/opsx/*`, `.cursor/skills/openspec-*` + `.cursor/commands/opsx/*`, and — for windsurf — `.devin/skills/openspec-*` + `.devin/workflows/opsx-*`, **not** under `.windsurf/`; see the note below the next table) — until you run `--openspec`, only the static snapshot from `.ai/skills/openspec-*`/`.ai/prompts/opsx-*` is present | Wherever `specify init --integration <agent>` puts them (confirmed: `.github/skills/speckit-*` for Copilot, `.claude/skills/speckit-*` for Claude) |
 
 Picking `speckit` or `none` with `--workflow` **removes** `.ai/skills/openspec-*` and
 `.ai/prompts/opsx-*` from the destination's `.ai/` before generation, so they never reach any
@@ -209,8 +211,23 @@ each other's, and the installer maps what it could confirm by actually running e
 | `copilot` | `github-copilot` | `copilot` |
 | `claude` | `claude` | `claude` |
 | `cursor` | `cursor` | `cursor-agent` |
-| `windsurf` | `windsurf` | *(not currently listed as a spec-kit integration)* |
+| `windsurf` | `devin` | *(not currently listed as a spec-kit integration)* |
 | `jetbrains` | *(no confirmed slug — a `junie` value exists in OpenSpec's list, unclear if it's the same product as "JetBrains AI Assistant")* | *(same uncertainty)* |
+
+**About `windsurf` → `devin`:** as of OpenSpec CLI 1.13.0, `openspec init --help` lists `devin` as
+the real `--tools` value and says `windsurf` is "now devin" — an accepted-but-deprecated alias, kept
+for backward compatibility only. Running it (either value; confirmed identical output) sets up an
+integration the CLI itself labels **"Devin Desktop (formerly Windsurf)"** and writes it entirely
+under **`.devin/`** — `.devin/skills/openspec-*/SKILL.md` and `.devin/workflows/opsx-*.md` — not
+`.windsurf/`. This kit uses the non-deprecated `devin` value so it keeps working if a future OpenSpec
+release drops the alias. This rename is scoped to OpenSpec's own generated output: this kit's own,
+separate Windsurf conventions (`.windsurfrules`, `.windsurf/rules/*`,
+`.windsurf/workflows/commit-and-push.md` / `neo4j-architecture-graph.md`, and the static
+`.windsurf/workflows/openspec-*` snapshot before `--openspec` has run) are unaffected and still land
+under `.windsurf/` as before — whether the underlying editor itself has also renamed those
+conventions is unconfirmed, so this kit does not guess and leaves them as-is. `--openspec windsurf
+<repo>` removes the now-stale static `.windsurf/workflows/openspec-*.md` files once the real `.devin/`
+integration is in place; `--check` flags it if an older install still has both.
 
 `--speckit`/`--workflow speckit` also runs `specify extension add git` once per repo (after the
 per-agent `init` calls). Without it, `/speckit-specify` never creates a feature branch: current
@@ -391,7 +408,10 @@ session.
 You can invoke callable skills two ways:
 1. **Natural language (recommended):** just ask ("let's plan a new feature", "start implementing
    the active change") — the agent is instructed to map your intent to the right skill on its own.
-2. **Explicit command:** use the slash command directly (`/openspec-propose`, `/openspec-apply-change`, ...).
+2. **Explicit command:** use the slash command directly (`/opsx-propose`, `/opsx-apply`, ...) where
+   your agent received prompt files (see the "Where each agent's files land" table above), or the
+   skill's own name (`openspec-propose`, `openspec-apply-change`, ...) for agents with native skill
+   discovery.
 
 If you chose OpenSpec (see "Choosing a spec-driven workflow" above), the callable skills implement
 `explore → propose → apply → sync-specs → archive`. If you chose spec-kit instead, use its own

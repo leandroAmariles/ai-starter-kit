@@ -30,20 +30,29 @@ This repository contains a canonical, portable startup package for AI coding age
 | `graph-rag/README.md` | OPTIONAL Step 2 — local Neo4j architecture graph: setup, multi-project config, cross-service edges |
 
 ## 4. Callable skills & Autonomous Invocation
+<!-- ai-starter-kit:startup-routing:start -->
 **AI Directive:** You must autonomously map the user's natural language requests to the skills listed below. If the user's intent matches a skill's purpose (e.g., they ask to "plan a feature" or "start implementing"), you must IMMEDIATELY invoke that skill's workflow as your first action, even if the user did not use the explicit slash command.
 
 **Which spec-driven workflow applies depends on what was installed** (see `install-ai-package.sh --workflow`; the two are mutually exclusive):
 
 | Skill | Intent / When to invoke | Optional Command |
 |---|---|---|
-| openspec-propose | User wants to design, plan, or spec a new feature/change | `/openspec-propose` |
-| openspec-apply-change | User wants to implement or execute tasks for a change | `/openspec-apply-change` |
-| openspec-update-change | User wants to revise planning artifacts or reconcile a spec | `/openspec-update-change` |
-| openspec-explore | User wants to investigate, explore ideas, or clarify requirements | `/openspec-explore` |
-| openspec-sync-specs | User wants to merge a delta spec into the main specs | `/openspec-sync-specs` |
-| openspec-archive-change | User wants to finalize and archive a completed change | `/openspec-archive-change` |
+| openspec-propose | User wants to design, plan, or spec a new feature/change | `/opsx-propose` |
+| openspec-apply-change | User wants to implement or execute tasks for a change | `/opsx-apply` |
+| openspec-update-change | User wants to revise planning artifacts or reconcile a spec | `/opsx-update` |
+| openspec-explore | User wants to investigate, explore ideas, or clarify requirements | `/opsx-explore` |
+| openspec-sync-specs | User wants to merge a delta spec into the main specs | `/opsx-sync` |
+| openspec-archive-change | User wants to finalize and archive a completed change | `/opsx-archive` |
 | neo4j-architecture-graph | User wants to discover classes, implementations, dependencies, or cross-service impact | (automatic — query the local Neo4j graph, only if Step 2 / `--graph` was installed) |
 | commit-and-push | User wants to commit, push, or open a pull request | `/commit-and-push` |
+
+The "Optional Command" column above is this kit's own static naming (from `<AI_ROOT>/prompts/`),
+accurate until you run `install-ai-package.sh --openspec <agents> <repo>`. That command replaces it
+with the real `openspec` CLI's own generated commands, whose exact syntax differs per agent and is
+not guaranteed to stay `/opsx-<name>` (confirmed: Cursor keeps `/opsx-<name>`, Claude Code namespaces
+it as `/opsx:<name>`, and Windsurf — listed by the CLI as "Devin Desktop (formerly Windsurf)" — uses
+`/openspec-<name>`). When in doubt, prefer natural language or the skill name itself
+(`openspec-propose`, ...), both of which stay correct regardless of which command syntax is current.
 
 If **spec-kit** was chosen instead of OpenSpec, the `openspec-*` rows above do not exist in this
 repo — use spec-kit's own generated commands instead: `/speckit-constitution` (once, optional),
@@ -52,6 +61,7 @@ repo — use spec-kit's own generated commands instead: `/speckit-constitution` 
 native skill/command location by the official `specify` CLI, not by this file's routing table.
 
 > Add your own callable skills under `<AI_ROOT>/skills/<skill-name>/SKILL.md` for organization-specific workflows (e.g. a private internal-library catalog, a proprietary integration guide). See `<AI_ROOT>/skills/README.md`.
+<!-- ai-starter-kit:startup-routing:end -->
 
 ## 5. Auto-enrichment rule
 When the agent detects a new reusable pattern during work, it must immediately launch a background sub-agent that prepares an enrichment proposal without interrupting the main task. That sub-agent presents the proposal asynchronously with the format: "🔍 New pattern detected: [name]. Incorporate to `<AI_ROOT>/`? [preview]". Changes are only applied with explicit user approval. See `<AI_ROOT>/rules/auto-enrichment.md` for the complete protocol.
@@ -71,7 +81,7 @@ Easiest: `./install-ai-package.sh --init <target-repo>` — interactive wizard f
 | Agent | Main file | Callable skills (`<AI_ROOT>/skills/*`) → | Receives prompt files? |
 |---|---|---|---|
 | GitHub Copilot | `.github/copilot-instructions.md` | `.github/skills/<name>/SKILL.md` | Yes — `.github/prompts/` |
-| Claude | `CLAUDE.md` | `.claude/skills/<name>/SKILL.md` | No |
-| Cursor | `.cursorrules` | `.cursor/skills/<name>/SKILL.md` | No |
-| Windsurf | `.windsurfrules` | `.windsurf/workflows/<name>.md` | No |
+| Claude | `CLAUDE.md` | `.claude/skills/<name>/SKILL.md` | Yes — `.claude/commands/` |
+| Cursor | `.cursorrules` | `.cursor/skills/<name>/SKILL.md` | Yes — `.cursor/commands/` |
+| Windsurf | `.windsurfrules` | `.windsurf/workflows/<name>.md` | No — equivalent content already in the workflow file |
 | JetBrains AI | `.aiassistant/rules/project.md` (+ `AGENTS.md` overview) | Not distributed yet (no confirmed native convention) | No |
