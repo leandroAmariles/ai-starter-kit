@@ -15,6 +15,24 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.6.3] - 2026-09-17
+
+Feat: `--graph` now pre-warms the `graph-rag` MCP server's `uvx` package cache right after writing
+`.mcp.json`, and its success message explains what to do if the AI agent's first connection to it
+still times out. Prompted by a real session hitting exactly this: `uvx mcp-neo4j-cypher@0.6.0`'s
+first-ever download exceeded the MCP client's 30s connection timeout, and a session restart was
+needed to retry against the now-cached package.
+
+Measuring this for real turned up a bigger factor than the download itself: on a Windows machine
+(antivirus/EDR scanning every file the interpreter touches), just starting the process — with the
+package fully cached and even with `--offline` — still took 27-90+ seconds. Pre-warming only
+removes the download cost, not that. The fix documented in the install message and
+`graph-rag/README.md`'s new "'Connection timed out' on the graph-rag MCP server's first use"
+section: retry once (the OS/AV cache from the first attempt usually speeds up the second), and if
+it still times out, raise the `MCP_TIMEOUT` environment variable (Claude Code; default 30000ms)
+before launching. No per-server startup timeout exists in `.mcp.json` itself to set this
+automatically — only a per-server `timeout`, which controls tool-call execution time, not startup.
+
 ## [1.6.2] - 2026-09-17
 
 Fix: `ai-bootstrap.sh`'s new self-update (1.6.1) rewrote its own on-disk file mid-execution and

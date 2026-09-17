@@ -748,10 +748,36 @@ else:
 PYEOF
 )"
   case "$result" in
-    WROTE:*) ok "Wrote graph-rag MCP server to ${result#WROTE:}. Restart your AI agent to pick it up." ;;
+    WROTE:*)
+      ok "Wrote graph-rag MCP server to ${result#WROTE:}. Restart your AI agent to pick it up."
+      info "If your agent's first connection to it times out: launching this server (uvx + Python +" \
+           "its dependencies) can take well over 30s on some machines — notably Windows with" \
+           "antivirus/EDR scanning every file the process touches — even once everything is" \
+           "downloaded and cached. Retrying usually works since the OS then has it cached too, but" \
+           "if it still times out, raise the connection timeout by setting the environment variable" \
+           "MCP_TIMEOUT (milliseconds, default 30000, e.g. 120000) before launching your agent."
+      ;;
     EXISTS:*) info "graph-rag MCP server already present in ${result#EXISTS:}; leaving it as-is." ;;
     *) warn "Could not update .mcp.json: $result" ;;
   esac
+
+  # The MCP config above launches the server via `uvx mcp-neo4j-cypher@0.6.0`.
+  # uvx resolves and downloads a package on its FIRST invocation of a given
+  # spec, which can alone exceed a client's connection timeout. Pre-warming
+  # it here removes that download cost specifically. It does NOT guarantee
+  # the connection will never time out — measured on a real Windows machine,
+  # even a fully cached, --offline invocation still took 27s+ (likely
+  # antivirus/EDR scanning the interpreter + heavy dependency imports on
+  # every process start, not a uv/network cost) — hence the MCP_TIMEOUT
+  # guidance in the message above as the actual fix for that residual case.
+  if command -v uvx >/dev/null 2>&1; then
+    info "Pre-warming the graph-rag MCP server package (uvx) to remove the download cost from your AI agent's first connection..."
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 120 uvx mcp-neo4j-cypher@0.6.0 --help >/dev/null 2>&1 || true
+    else
+      uvx mcp-neo4j-cypher@0.6.0 --help >/dev/null 2>&1 || true
+    fi
+  fi
 }
 
 hook_speckit_graph_rag() {

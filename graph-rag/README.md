@@ -249,3 +249,21 @@ RETURN a.name AS service, b.name AS depends_on
 Use [`ai-agent-neo4j-instructions.md`](ai-agent-neo4j-instructions.md) as the concise query
 reference, and the `neo4j-architecture-graph` callable skill (`.ai/skills/`) for when/how to reach
 for the graph. Always confirm graph discoveries in the current source before making changes.
+
+### "Connection timed out" on the graph-rag MCP server's first use
+
+The `graph-rag` entry in `.mcp.json` launches via `uvx mcp-neo4j-cypher@0.6.0` — a Python process
+with a fairly heavy dependency tree (`fastmcp`, `authlib`, `starlette`, `uvicorn`, the Neo4j driver,
+...). `--graph` pre-warms `uvx`'s package cache during install specifically so the very first
+connection doesn't also have to download it, but that only removes the *download* cost. On some
+machines — measured on Windows with antivirus/EDR scanning every file the interpreter touches —
+just starting the process can still take 30-90+ seconds even fully cached and offline, which is
+longer than an MCP client's default connection timeout. If your AI agent reports the `graph-rag`
+server timed out or failed to connect:
+
+1. **Just retry** (e.g. restart the session) — the OS/AV having already scanned these files once
+   usually makes the next attempt noticeably faster, and it may connect fine.
+2. If it keeps timing out, raise the client's connection timeout. For Claude Code, set the
+   `MCP_TIMEOUT` environment variable (milliseconds, default `30000`) to something larger, e.g.
+   `120000`, before launching it — check your AI agent's own docs for the equivalent if you're
+   using a different one.
