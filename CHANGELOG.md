@@ -15,6 +15,32 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.6.1] - 2026-09-17
+
+Fix: `ai-bootstrap.sh` never re-ran the Neo4j graph step after the initial `--init` wizard —
+`--update` (the path every later run takes) silently skipped it forever, so a repo whose graph
+container got stopped or removed had no one-command way to bring it back beyond re-running
+`install-ai-package.sh --graph` directly. `ai-bootstrap.sh` now also runs `--graph` whenever
+`graph-rag/` already exists (or `--graph` is passed explicitly) — safe and quick every time, since
+`--graph` is idempotent and only starts a container if one isn't already reachable (1.6.0).
+
+Also: `ai-bootstrap.sh` now self-updates its own copy from the kit it just cloned as its last step.
+Without this, a fix to the *bootstrap script's own logic* — like the one above — would never reach
+a repo that already had a copy of it, no matter how many times that repo ran it, since `--update`
+only ever refreshes `.ai/`, never this file. Found by hitting exactly this: after shipping the fix
+above, running the *already-installed, pre-fix* `ai-bootstrap.sh` against a real repo did nothing
+differently, because that repo's on-disk copy predated the fix and nothing was refreshing it.
+
+`graph-rag/docker-compose.yml` now pins an explicit `name: graph-rag` (matching its existing
+default, so no behavior change) and documents plainly that `docker compose down -v` deletes the
+graph for every project sharing that instance, not just the one it's run from — the exact operation
+that destroyed a real, already-ingested graph during this fix's own testing (a test container in
+this kit's own checkout collided, by directory-name, with a real installed repo's; `docker compose
+down -v` on the former took out the latter's container and volume too). Re-ingesting is always safe
+(Phase 1 is a deterministic scan, not hand-authored data) and is exactly what was done to recover
+it; `graph-rag/README.md` gained a "Recreating a deleted Neo4j container" section spelling out that
+plain container removal is safe/recoverable and `-v` is the one operation that isn't.
+
 ## [1.6.0] - 2026-09-17
 
 Feat: microservices can now share one Neo4j architecture graph without any of them referencing

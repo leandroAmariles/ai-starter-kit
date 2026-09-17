@@ -9,9 +9,18 @@
 #   - .ai/ already installed here -> runs a non-interactive update (safe to
 #                                    re-run any time; no-ops cleanly if already
 #                                    current)
+# Either way, if the optional Neo4j architecture graph (graph-rag/) is already
+# set up here — or --graph is passed — this also re-verifies it and brings its
+# Docker container back up (or creates it fresh) if it was stopped or removed
+# since the last run. That container's data lives in a separate, named Docker
+# volume that survives the container being deleted, so recreating it picks the
+# graph back up rather than starting over — this only re-scans the repo to
+# refresh it. See "Recreating a deleted Neo4j container" in graph-rag/README.md.
 #
 # Usage:
-#   ./ai-bootstrap.sh
+#   ./ai-bootstrap.sh            # install/update .ai/, heal the graph if present
+#   ./ai-bootstrap.sh --graph    # also (re)run the optional Neo4j graph step,
+#                                #  even on a repo that doesn't have it yet
 #
 # Override via environment variables if needed:
 #   AI_KIT_REPO_URL=git@github.com:leandroAmariles/ai-starter-kit.git ./ai-bootstrap.sh
@@ -37,4 +46,28 @@ if [[ -d "$REPO_ROOT/.ai" ]]; then
 else
   echo "No .ai/ found in $REPO_ROOT — running the first-install wizard..."
   "$INSTALLER" --init "$REPO_ROOT"
+fi
+
+# The wizard's own Neo4j question above only runs on a brand-new --init. On
+# every later run (the common --update case), or if graph-rag/ already
+# exists, or if --graph was passed explicitly, re-verify the graph: --graph
+# is idempotent — it reuses graph-rag/.env exactly as-is (never touching
+# PROJECT_PATHS you configured) and starts its Docker container only if one
+# isn't already reachable, so this is safe and quick to run every time.
+if [[ -d "$REPO_ROOT/graph-rag" || "${1:-}" == "--graph" ]]; then
+  echo "Making sure the Neo4j architecture graph is up in $REPO_ROOT..."
+  "$INSTALLER" --graph "$REPO_ROOT"
+fi
+
+# This script is the one thing NOT re-synced by --update above (it's what
+# does the cloning in the first place, so it can't rewrite itself mid-run) —
+# without this, a fix to ai-bootstrap.sh's own logic would silently never
+# reach repos that already have a copy of it, no matter how many times they
+# run it. Self-update as the LAST step, from the copy this run just cloned,
+# so it never affects the run in progress, only the next one.
+SELF="$TMP_DIR/kit/ai-bootstrap.sh"
+if [[ -f "$SELF" ]] && ! cmp -s "$SELF" "$REPO_ROOT/ai-bootstrap.sh" 2>/dev/null; then
+  cp "$SELF" "$REPO_ROOT/ai-bootstrap.sh"
+  chmod +x "$REPO_ROOT/ai-bootstrap.sh"
+  echo "ai-bootstrap.sh itself was updated to the latest version — review with 'git diff ai-bootstrap.sh' and commit it."
 fi

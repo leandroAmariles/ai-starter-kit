@@ -1,3 +1,17 @@
+# Pinned so the container/volume names below (graph-rag-neo4j-1,
+# graph-rag_neo4j_data) are stable and explicit rather than an implicit side
+# effect of this folder happening to be named "graph-rag" — which every
+# install of this kit's graph-rag/ is, by design: that's what lets several
+# microservices' independent `--graph` runs join the SAME Neo4j instance (see
+# "Sharing one graph across several microservices" in README.md).
+#
+# Because of that: `docker compose down -v` (or `docker volume rm
+# graph-rag_neo4j_data`) here deletes the ingested graph for EVERY project
+# sharing this instance, not just the one you're working in — plain `docker
+# compose down` / removing the container without `-v` is safe and recoverable
+# (the named volume survives; recreating the container reattaches to it and
+# the graph data is intact, no re-ingestion needed).
+name: graph-rag
 services:
   neo4j:
     image: neo4j:5

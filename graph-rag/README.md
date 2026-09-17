@@ -32,6 +32,29 @@ Open [Neo4j Browser](http://localhost:7474) and use the local credentials from `
 committed password in `.env.example` is intentionally a dummy local-development credential —
 never put real credentials in tracked files.
 
+## Recreating a deleted Neo4j container
+
+The ingested graph lives in a separate, named Docker volume (`graph-rag_neo4j_data`), not in the
+container itself. If the container is stopped, removed, or your machine restarts, just bring it
+back — the volume survives and the data is intact, no re-ingestion needed:
+
+```bash
+./install-ai-package.sh --graph <destination-repo>   # idempotent: reuses graph-rag/.env as-is
+# or, from inside the destination repo, if it has ai-bootstrap.sh:
+./ai-bootstrap.sh --graph
+```
+
+Both re-check whether Neo4j is already reachable before doing anything, so this is safe and quick
+to run any time, including as part of every normal `ai-bootstrap.sh` run (it does this
+automatically whenever `graph-rag/` already exists — see its own header comment).
+
+**The one operation that actually destroys the graph is `docker compose down -v`** (or `docker
+volume rm graph-rag_neo4j_data` directly) — the `-v` flag deletes the named volume along with the
+container. Because that volume's name is shared by design across every microservice joined to this
+same graph (see below), running it from *any one* of them deletes the graph for *all* of them, not
+just the repo you're standing in. Plain `docker compose down`, `docker rm`, or removing the
+container from Docker Desktop's UI are all safe — none of them touch the volume.
+
 ## Sharing one graph across several microservices
 
 By default `PROJECT_PATHS=.` in `.env` — just the repository this kit was installed into. If you
