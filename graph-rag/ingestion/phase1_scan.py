@@ -271,8 +271,9 @@ def _ingest_project(
         f"missing={len(missing_before)} stale={len(stale_before)} modified={len(modified_before)}"
     )
 
-    coordinates = read_project_coordinates(repo_root, list(final_inventory))
-    return parsed_classes, relations_created, coordinates, service_call_targets
+    provided, required = read_project_coordinates(repo_root, list(final_inventory))
+    ingestor.set_project_coordinates(project, group, provided, required)
+    return parsed_classes, relations_created, (provided, required), service_call_targets
 
 
 def main() -> None:
@@ -300,75 +301,59 @@ def main() -> None:
     )
 
     all_parsed_classes: list[dict] = []
-    coordinates_by_project: dict[str, tuple[set, set]] = {}
     service_call_targets_by_project: dict[str, list[tuple[str, str]]] = {}
 
     try:
         _run_setup_statements(ingestor)
 
+        # ── Cross-project edges (DEPENDS_ON_PROJECT, promoted CALLS_SERVICE,
+        # SHARES_DATABASE) are computed against the shared graph right after
+        # each project is ingested, not by comparing this run's PROJECT_PATHS
+        # entries in memory. That's what lets a microservice be ingested by
+        # its own, independent `--graph` run — never listing its siblings —
+        # while still ending up connected to whichever other projects already
+        # share this same Neo4j instance, in any order, across any number of
+        # separate runs. Running multiple projects in one PROJECT_PATHS list
+        # still works exactly as before: it's just N of these graph-side
+        # passes done back to back in the same process.
+        dependency_edges = 0
+        promoted_external_edges = 0
+        shared_database_edges = 0
         for project, repo_root in projects:
-            parsed_classes, _relations, coordinates, service_call_targets = _ingest_project(
+            parsed_classes, _relations, _coordinates, service_call_targets = _ingest_project(
                 ingestor, group, project, repo_root, args.reset
             )
             for parsed in parsed_classes:
                 scoped = dict(parsed)
                 scoped["fqn"] = _scoped(group, project, parsed["fqn"])
                 all_parsed_classes.append(scoped)
-            coordinates_by_project[project] = coordinates
             service_call_targets_by_project[project] = service_call_targets
 
-        # ── Cross-project edges: A DEPENDS_ON_PROJECT B iff A requires a Maven
-        # coordinate that B publishes. Deterministic, no false positives, and
-        # only meaningful when the depended-upon project is also configured
-        # in PROJECT_PATHS (so its own coordinates were actually read).
-        dependency_edges = 0
-        for project_a, (_, required_a) in coordinates_by_project.items():
-            for project_b, (provided_b, _) in coordinates_by_project.items():
-                if project_a == project_b or not provided_b:
-                    continue
-                if required_a & provided_b:
-                    ingestor.upsert_project_dependency(project_a, project_b, group)
-                    dependency_edges += 1
+            dependency_edges += ingestor.link_project_dependencies(project, group)
+            promoted_external_edges += ingestor.promote_external_services(project, group)
+            shared_database_edges += ingestor.link_shared_databases(project, group)
 
         # ── CALLS_SERVICE: a @FeignClient(name="X"), or a literal WebClient/
         # RestTemplate base URL whose hostname is X, is only linked to a real
-        # :Project node when X matches a project actually configured in
-        # PROJECT_PATHS (verified, like DEPENDS_ON_PROJECT above); otherwise
-        # it links to an :ExternalService node, since the target wasn't
-        # confirmed to be present in this graph.
+        # :Project node when X is verified to exist — either because it's
+        # configured in this same run's PROJECT_PATHS (order-independent: all
+        # of them finish ingesting before this check, same as before) or
+        # because it was already ingested into this shared graph by an
+        # earlier, independent run. Anything else links to an :ExternalService
+        # node instead, since the target wasn't confirmed to be present;
+        # promote_external_services() above upgrades those retroactively once
+        # the real project does get ingested.
         known_project_names = {name for name, _ in projects}
+        all_call_targets = {
+            target for targets in service_call_targets_by_project.values() for _, target in targets
+        }
+        verified_targets = known_project_names | ingestor.existing_project_names(all_call_targets, group)
         service_call_edges = 0
         for service_call_targets in service_call_targets_by_project.values():
             for class_fqn, target_name in service_call_targets:
-                verified = target_name in known_project_names
+                verified = target_name in verified_targets
                 ingestor.upsert_service_call(class_fqn, target_name, verified, group)
                 service_call_edges += 1
-
-        # ── SHARES_DATABASE: two different projects resolve to the identical
-        # (engine, database name) pair from their own application*.yml. Each
-        # project's USES_DATABASE edge already points at the same merged
-        # :Database node in that case; this just adds the direct Project-to-
-        # Project edge so it doesn't require a 2-hop query to notice.
-        datasources_by_project = {
-            project: scan_datasources(repo_root) for project, repo_root in projects
-        }
-        shared_database_edges = 0
-        seen_pairs: set[frozenset[str]] = set()
-        for project_a, datasources_a in datasources_by_project.items():
-            for project_b, datasources_b in datasources_by_project.items():
-                if project_a == project_b:
-                    continue
-                pair_key = frozenset((project_a, project_b))
-                if pair_key in seen_pairs:
-                    continue
-                common = {
-                    (ds["engine"], ds["database"]) for ds in datasources_a
-                } & {(ds["engine"], ds["database"]) for ds in datasources_b}
-                for engine, database in common:
-                    ingestor.upsert_shared_database(project_a, project_b, engine, database, group)
-                    shared_database_edges += 1
-                if common:
-                    seen_pairs.add(pair_key)
 
         ingestor.cleanup_orphans()
 
@@ -383,7 +368,10 @@ def main() -> None:
             f"{', '.join(name for name, _ in projects)}"
         )
         print(f"Cross-project DEPENDS_ON_PROJECT edges: {dependency_edges}")
-        print(f"Cross-project CALLS_SERVICE edges: {service_call_edges}")
+        print(
+            f"Cross-project CALLS_SERVICE edges: {service_call_edges} "
+            f"({promoted_external_edges} promoted from earlier unverified calls)"
+        )
         print(f"Cross-project SHARES_DATABASE edges: {shared_database_edges}")
         print("✅ Phase 1 complete. Ask your AI agent to execute pipeline_tasks.md to generate data/summaries.json")
     finally:

@@ -106,6 +106,14 @@ Modes:
              Compose, runs the Phase 1 scan). See graph-rag/README.md to configure multiple
              projects (PROJECT_PATHS). Every step degrades gracefully with an actionable
              warning if Docker/Python aren't available, instead of failing the install.
+             Before starting a new Neo4j container, checks whether one is already reachable
+             at this repo's own graph-rag/.env NEO4J_URI (every repo ships the same default
+             local-dev URI/credentials) — if so, joins that existing instance instead of
+             starting a second, separate one. Each repo's PROJECT_PATHS still only lists
+             itself (no repo's config ever references another repo), but cross-project
+             DEPENDS_ON_PROJECT/CALLS_SERVICE/SHARES_DATABASE edges still form: Phase 1
+             computes them by querying the shared graph for already-ingested sibling
+             projects, not by any project listing its siblings' paths.
   --statusline OPTIONAL, user-level (not project-scoped): installs ~/.<target>/statusline.py and
              wires it into ~/.<target>/settings.json's statusLine, for <target> = "claude"
              (default) or "copilot". Also run automatically by --agents/--init whenever that
@@ -983,24 +991,40 @@ bootstrap_graph_rag() {
     return 0
   fi
 
-  info "Starting the local Neo4j container..."
-  if ! (cd "$graph_dir" && docker compose --env-file .env up -d); then
-    warn "Could not start Neo4j. See $graph_dir/README.md to start it manually."
-    return 0
-  fi
-
-  info "Waiting for Neo4j to accept connections..."
-  local attempt ready=false
-  for attempt in $(seq 1 30); do
-    if "$venv_python" "$graph_dir/verify_graph.py" --connection >/dev/null 2>&1; then
-      ready=true
-      break
+  # Every repo this kit sets up ships the exact same default local-dev
+  # NEO4J_URI/credentials in .env.example, so if something is ALREADY
+  # answering to them, it's almost certainly another project's graph-rag
+  # container from this same kit — join it instead of starting a second,
+  # separate Neo4j (which would just fail on the same host ports anyway).
+  # This is a live connectivity probe only: this repo's own graph-rag/ is
+  # still copied and kept self-contained (its own venv, its own PROJECT_PATHS
+  # scoped to just this repo) — no repo's config ever lists another repo's
+  # path, so microservices stay unaware of each other. Cross-project edges
+  # (DEPENDS_ON_PROJECT, CALLS_SERVICE, SHARES_DATABASE) still connect, but
+  # are computed inside phase1_scan.py by querying the shared graph itself,
+  # not by this script knowing who else is ingested into it.
+  if "$venv_python" "$graph_dir/verify_graph.py" --connection >/dev/null 2>&1; then
+    ok "Found an existing, reachable Neo4j at $(grep -m1 '^NEO4J_URI=' "$graph_dir/.env" | cut -d= -f2-) — joining it instead of starting a new container."
+  else
+    info "Starting the local Neo4j container..."
+    if ! (cd "$graph_dir" && docker compose --env-file .env up -d); then
+      warn "Could not start Neo4j. See $graph_dir/README.md to start it manually."
+      return 0
     fi
-    sleep 2
-  done
-  if [[ "$ready" != true ]]; then
-    warn "Neo4j did not become reachable in time. See $graph_dir/README.md to check its status."
-    return 0
+
+    info "Waiting for Neo4j to accept connections..."
+    local attempt ready=false
+    for attempt in $(seq 1 30); do
+      if "$venv_python" "$graph_dir/verify_graph.py" --connection >/dev/null 2>&1; then
+        ready=true
+        break
+      fi
+      sleep 2
+    done
+    if [[ "$ready" != true ]]; then
+      warn "Neo4j did not become reachable in time. See $graph_dir/README.md to check its status."
+      return 0
+    fi
   fi
 
   info "Running the Phase 1 architecture scan (PROJECT_PATHS in $graph_dir/.env)..."

@@ -15,6 +15,34 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.6.0] - 2026-09-17
+
+Feat: microservices can now share one Neo4j architecture graph without any of them referencing
+another's filesystem path. Two changes make this work:
+
+- `--graph`/`--init`, before starting a new Neo4j container, checks whether one is already
+  reachable at this repo's own `graph-rag/.env` `NEO4J_URI` — every repo ships the same default
+  local-dev URI/credentials, so a second repo's install detects the first repo's already-running
+  container and joins it instead of starting (and failing to start) a second one on the same host
+  ports. Each repo's own `PROJECT_PATHS` stays `.` — it never lists a sibling's path.
+- `ingestion/phase1_scan.py`/`graph_ingestor.py`: `DEPENDS_ON_PROJECT`, `CALLS_SERVICE`, and
+  `SHARES_DATABASE` cross-project edges used to be computed by comparing every project configured
+  in one process's `PROJECT_PATHS` in memory — which only worked if every related project was
+  listed together in one run. They're now computed by each project's own ingestion querying the
+  shared graph for already-ingested sibling `:Project` nodes (their persisted `provides`/`requires`
+  Maven coordinates, in both directions), so the edges form correctly regardless of which project
+  was ingested first or whether they were ever listed together. An earlier, unverified
+  `CALLS_SERVICE` link to an `:ExternalService` placeholder is automatically promoted to the real
+  `:Project` node once that project is later ingested by anyone. Verified end-to-end against a real
+  Neo4j instance with three independently-ingested fake microservices (dependency, service-call,
+  and retroactive-linking scenarios), plus the existing unit suite (18 tests, no regressions).
+  `PROJECT_PATHS` listing several projects in one run still works exactly as before — it's just N
+  of these same graph-side passes done back to back.
+
+Prompted by a user asking how to point a second repo's install at the graph from a first, and
+clarifying that neither repo's config should need to know the other exists. See
+`graph-rag/README.md`'s "Sharing one graph across several microservices" section.
+
 ## [1.5.1] - 2026-09-16
 
 Fix: `commit-and-push/SKILL.md`'s step 9 (1.5.0) said to "skip silently" the graph refresh when

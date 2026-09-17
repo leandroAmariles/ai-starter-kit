@@ -260,45 +260,139 @@ class GraphIngestor:
                     group=group,
                 ).consume()
 
-    def upsert_shared_database(
-        self, project_a: str, project_b: str, engine: str, database: str, group: str
+    def set_project_coordinates(
+        self, project: str, group: str, provided: set[tuple[str, str]], required: set[tuple[str, str]]
     ) -> None:
-        """Undirected in intent (called once per unordered pair): both
-        projects' `USES_DATABASE` already points at the same `:Database`
-        node when engine+database+group match, so this only adds a direct
-        `Project`-to-`Project` edge for a quick "who else touches this
-        database" query without a 2-hop traversal."""
+        """Persists this project's own Maven coordinates on its `:Project` node
+        so a LATER, independent ingestion of a *different* project — one that
+        never reads this project's pom.xml directly, because each microservice
+        runs its own `--graph` against a shared Neo4j instance without listing
+        its siblings — can still discover a `DEPENDS_ON_PROJECT` edge against
+        it via `link_project_dependencies()`. That's a graph-side join instead
+        of the in-process set comparison this replaces; the persisted lists
+        are what make it possible."""
         with self.driver.session() as session:
             session.run(
                 """
-                MERGE (a:Project {name: $project_a, group: $group})
-                MERGE (b:Project {name: $project_b, group: $group})
-                MERGE (a)-[r:SHARES_DATABASE]->(b)
-                SET r.engine = $engine, r.database = $database
+                MATCH (p:Project {name: $project, group: $group})
+                SET p.provides = $provides, p.requires = $requires
                 """,
-                project_a=project_a,
-                project_b=project_b,
-                engine=engine,
-                database=database,
+                project=project,
                 group=group,
+                provides=sorted(f"{g}:{a}" for g, a in provided),
+                requires=sorted(f"{g}:{a}" for g, a in required),
             ).consume()
 
-    def upsert_project_dependency(self, from_project: str, to_project: str, group: str) -> None:
-        """Deterministic cross-project edge: `from_project` depends on `to_project`
-        because a Maven coordinate it requires is published by `to_project`.
-        See `ingestion.maven_coordinates.read_project_coordinates`.
-        """
+    def link_project_dependencies(self, project: str, group: str) -> int:
+        """Graph-side equivalent of comparing every project's coordinates in
+        one process: matches `project`'s own provides/requires (just persisted
+        by `set_project_coordinates`) against every OTHER `:Project` already
+        in the same group, in both directions — so it also retroactively links
+        a project that was ingested earlier and needed what `project` just
+        started providing, even though that earlier run never knew `project`
+        existed. Like the in-process version it replaces, this only ever adds
+        edges (MERGE): a dependency later removed from a pom.xml does not
+        retract an edge created here in the past."""
         with self.driver.session() as session:
-            session.run(
+            depends_on = session.run(
                 """
-                MERGE (a:Project {name: $from_project, group: $group})
-                MERGE (b:Project {name: $to_project, group: $group})
-                MERGE (a)-[:DEPENDS_ON_PROJECT]->(b)
+                MATCH (self:Project {name: $project, group: $group})
+                MATCH (other:Project {group: $group})
+                WHERE other.name <> self.name
+                  AND self.requires IS NOT NULL AND other.provides IS NOT NULL
+                  AND any(coordinate IN self.requires WHERE coordinate IN other.provides)
+                MERGE (self)-[:DEPENDS_ON_PROJECT]->(other)
+                RETURN count(other) AS linked
                 """,
-                from_project=from_project,
-                to_project=to_project,
+                project=project,
                 group=group,
-            ).consume()
+            ).single()
+            depended_on_by = session.run(
+                """
+                MATCH (self:Project {name: $project, group: $group})
+                MATCH (other:Project {group: $group})
+                WHERE other.name <> self.name
+                  AND other.requires IS NOT NULL AND self.provides IS NOT NULL
+                  AND any(coordinate IN other.requires WHERE coordinate IN self.provides)
+                MERGE (other)-[:DEPENDS_ON_PROJECT]->(self)
+                RETURN count(other) AS linked
+                """,
+                project=project,
+                group=group,
+            ).single()
+            return (depends_on["linked"] if depends_on else 0) + (
+                depended_on_by["linked"] if depended_on_by else 0
+            )
+
+    def existing_project_names(self, names: set[str], group: str) -> set[str]:
+        """Which of `names` are already ingested `:Project` nodes in `group` —
+        used to decide whether a `@FeignClient`/WebClient call target should
+        link to the real `:Project` node or an `:ExternalService` placeholder,
+        without requiring the caller to already know every project name up
+        front (the decentralized, one-repo-at-a-time ingestion case)."""
+        if not names:
+            return set()
+        with self.driver.session() as session:
+            result = session.run(
+                "MATCH (p:Project) WHERE p.group = $group AND p.name IN $names RETURN p.name AS name",
+                group=group,
+                names=sorted(names),
+            )
+            return {record["name"] for record in result}
+
+    def promote_external_services(self, project: str, group: str) -> int:
+        """Upgrades any `:ExternalService` placeholder left by an earlier,
+        independent ingestion of ANOTHER project that called `project` before
+        `project` itself had ever been ingested (`upsert_service_call` only
+        links to a real `:Project` when the target was already present at
+        that time). Makes the decentralized model self-healing: as each
+        microservice gets ingested — in whatever order, whenever its own
+        `--graph` happens to run — earlier unverified references to it
+        upgrade automatically instead of staying stuck as external calls."""
+        with self.driver.session() as session:
+            result = session.run(
+                """
+                MATCH (caller)-[old:CALLS_SERVICE]->(ext:ExternalService {name: $project, group: $group})
+                MATCH (p:Project {name: $project, group: $group})
+                MERGE (caller)-[:CALLS_SERVICE]->(p)
+                DELETE old
+                WITH DISTINCT ext
+                DETACH DELETE ext
+                RETURN count(ext) AS promoted
+                """,
+                project=project,
+                group=group,
+            ).single()
+            return result["promoted"] if result else 0
+
+    def link_shared_databases(self, project: str, group: str) -> int:
+        """Two projects that resolve to the identical (engine, database)
+        pair from their own application*.yml already point at the same
+        `:Database` node (`link_project_database` merges onto it no matter
+        which project's ingestion created it, so this is already correct
+        across independent runs); this only adds the direct `Project`-to-
+        `Project` convenience edge so "who else touches this database"
+        doesn't need a 2-hop query. Direction is canonicalized by name
+        (alphabetically first -> second)
+        so two projects' independent runs converge on the exact same
+        relationship instead of each creating one pointing the other way."""
+        with self.driver.session() as session:
+            result = session.run(
+                """
+                MATCH (self:Project {name: $project, group: $group})-[:USES_DATABASE]->(d:Database)
+                      <-[:USES_DATABASE]-(other:Project {group: $group})
+                WHERE other.name <> self.name
+                WITH (CASE WHEN self.name < other.name THEN self ELSE other END) AS a,
+                     (CASE WHEN self.name < other.name THEN other ELSE self END) AS b,
+                     d
+                MERGE (a)-[r:SHARES_DATABASE]->(b)
+                SET r.engine = d.engine, r.database = d.database
+                RETURN count(DISTINCT b) AS linked
+                """,
+                project=project,
+                group=group,
+            ).single()
+            return result["linked"] if result else 0
 
     def update_document_embedding(self, fqn: str, embedding: list, summary: str) -> None:
         with self.driver.session() as session:

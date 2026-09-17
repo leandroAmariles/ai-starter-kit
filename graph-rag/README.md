@@ -32,11 +32,30 @@ Open [Neo4j Browser](http://localhost:7474) and use the local credentials from `
 committed password in `.env.example` is intentionally a dummy local-development credential —
 never put real credentials in tracked files.
 
-## Ingesting more than one project into the same graph
+## Sharing one graph across several microservices
 
 By default `PROJECT_PATHS=.` in `.env` — just the repository this kit was installed into. If you
-work across several microservices and want **one shared graph** that shows how they relate to each
-other, list every local checkout you want included:
+work across several microservices, the recommended setup is **one independent `graph-rag/` install
+per repo, all pointing at the same Neo4j** — not one repo listing every sibling's path:
+
+* Every repo's `.env.example` ships the identical default `NEO4J_URI`/credentials, so running
+  `install-ai-package.sh --graph <repo>` (or answering "yes" to the Neo4j question in `--init`'s
+  wizard) in a **second** repo detects the **first** repo's already-running Neo4j container (same
+  URI, already reachable) and joins it instead of starting a second, separate one — which would
+  just fail on the same host ports anyway.
+* Each repo's own `PROJECT_PATHS` stays `.` — it never lists any other repo's path. No microservice's
+  config ever references another microservice by name or filesystem location.
+* Cross-service edges (`DEPENDS_ON_PROJECT`, `CALLS_SERVICE`, `SHARES_DATABASE` — see below) are
+  computed by each repo's own Phase 1 run **querying the shared graph** for already-ingested sibling
+  projects, not by any repo enumerating its siblings. This works in any order: ingest `orders`
+  today and `payments` next month against the same Neo4j, and both directions of any relationship
+  between them appear as soon as the second one is ingested — including retroactively upgrading an
+  earlier unverified `CALLS_SERVICE` call once its real target shows up.
+
+The older alternative — one `graph-rag/` install whose `.env` lists every sibling checkout by path —
+still works and is exactly equivalent from the graph's point of view (same shared Neo4j, same node
+identities); it's just a single hub repo's config knowing about every other repo, which the
+decentralized setup above avoids:
 
 ```bash
 # graph-rag/.env
@@ -52,20 +71,24 @@ property, and Phase 1 reconciliation (deletion of stale/changed nodes) is scoped
 Ingesting `payments-service` can never delete or overwrite `orders`'s nodes, even though they live
 in the same Neo4j database — each project's node identity (`fqn`) is internally prefixed with its
 project name to stay globally unique (e.g. two services both having a `README.md` at their root
-does not collide).
+does not collide). This holds whether all projects are ingested by one process (`PROJECT_PATHS`
+listing several) or each by its own, fully independent `--graph` run.
 
 ### How cross-service relationships are modeled
 
-Each ingested repository gets one `(:Project {name, path})` node, and every `Class`/`Document`
-belonging to it gets a `-[:BELONGS_TO]->` edge to it. This lets you scope any query to one project,
-or ask "what does project X contain".
+Each ingested repository gets one `(:Project {name, path, provides, requires})` node, and every
+`Class`/`Document` belonging to it gets a `-[:BELONGS_TO]->` edge to it. This lets you scope any
+query to one project, or ask "what does project X contain".
 
-For **inter-service** relationships, Phase 1 reads every tracked `pom.xml` in each project and
-compares Maven coordinates: if project A declares a dependency on `groupId:artifactId` that project
-B's own `pom.xml` publishes, Phase 1 creates `(A)-[:DEPENDS_ON_PROJECT]->(B)`. This only fires when
-**both** repositories are listed in `PROJECT_PATHS` — the tool never fabricates a service graph out
-of a `pom.xml` dependency list alone, only out of coordinates it can actually verify by ingesting
-the publisher too.
+For **inter-service** relationships, Phase 1 reads every tracked `pom.xml` in a project and persists
+its own published/required Maven coordinates on its `:Project` node, then queries the graph for any
+*other* `:Project` (in the same `PROJECT_GROUP`) whose coordinates intersect — in both directions.
+If project A requires a `groupId:artifactId` that project B publishes, Phase 1 creates
+`(A)-[:DEPENDS_ON_PROJECT]->(B)`. Because this is a graph-side lookup rather than an in-process
+comparison, it fires correctly no matter which of A or B was ingested first, or whether they were
+ever listed in the same `PROJECT_PATHS` at all — the tool never fabricates a service graph out of a
+`pom.xml` dependency list alone, only out of coordinates it can actually verify by ingesting the
+publisher too, at some point, into this same graph.
 
 ```cypher
 // Which services does "orders" depend on?
@@ -76,6 +99,13 @@ RETURN b.name
 MATCH (dependent:Project)-[:DEPENDS_ON_PROJECT]->(target:Project {name: 'shared-lib'})
 RETURN dependent.name
 ```
+
+`CALLS_SERVICE` (from a `@FeignClient`/WebClient target) works the same way: if the target project
+isn't in the graph yet, the call links to a placeholder `:ExternalService` node instead; once that
+project is later ingested (by anyone, independently), the placeholder is automatically upgraded to
+point at the real `:Project` node. `SHARES_DATABASE` piggybacks on the `:Database` node that two
+projects' `USES_DATABASE` edges already merge onto when they resolve to the same (engine, database
+name) pair, regardless of which project's run created it first.
 
 This deterministic, dependency-based linking is the recommended starting point because it has no
 false positives. Detecting *runtime* interactions (REST calls, message queues between services) is
