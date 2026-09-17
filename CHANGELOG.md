@@ -15,6 +15,19 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.6.2] - 2026-09-17
+
+Fix: `ai-bootstrap.sh`'s new self-update (1.6.1) rewrote its own on-disk file mid-execution and
+then kept running the rest of the *already-loaded* script without re-exec-ing — unsafe: bash can
+end up reading a spliced mix of old/new bytes for whatever comes after, and did, failing with
+`unexpected EOF while looking for matching` right at the end of an otherwise fully successful run
+(graph healed, self-update copied correctly — only the tail end of that same run crashed). Verified
+live: running the fixed version end-to-end now self-updates and re-execs cleanly with no error.
+Self-update now happens first, immediately followed by `exec "$REPO_ROOT/ai-bootstrap.sh" "$@"` so
+every subsequent line always runs from a fresh, fully-on-disk process image instead of the stale
+one already in memory; the temp clone is cleaned up explicitly before `exec` since it replaces the
+process outright and the `trap ... EXIT` cleanup never fires for it.
+
 ## [1.6.1] - 2026-09-17
 
 Fix: `ai-bootstrap.sh` never re-ran the Neo4j graph step after the initial `--init` wizard —

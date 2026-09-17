@@ -37,6 +37,24 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 echo "Fetching ai-starter-kit (@${AI_KIT_REF}) from ${AI_KIT_REPO_URL}..."
 git clone --quiet --depth 1 --branch "$AI_KIT_REF" "$AI_KIT_REPO_URL" "$TMP_DIR/kit"
 
+# Self-update FIRST, before anything else runs: if the freshly-cloned kit
+# ships a different ai-bootstrap.sh than the one currently executing, replace
+# the on-disk copy and immediately `exec` it (same args) so every line below
+# always runs the current logic. Rewriting this running script's own file
+# and continuing to execute past that point WITHOUT re-exec-ing is unsafe —
+# bash can end up reading a spliced mix of old/new bytes for what follows and
+# fail with a confusing syntax error, even though the copy on disk is fine.
+SELF="$TMP_DIR/kit/ai-bootstrap.sh"
+if [[ -f "$SELF" ]] && ! cmp -s "$SELF" "$REPO_ROOT/ai-bootstrap.sh" 2>/dev/null; then
+  cp "$SELF" "$REPO_ROOT/ai-bootstrap.sh"
+  chmod +x "$REPO_ROOT/ai-bootstrap.sh"
+  echo "ai-bootstrap.sh itself was updated to the latest version — re-running it (review with 'git diff ai-bootstrap.sh' and commit it once it's done)..."
+  # `exec` replaces this process outright, so the EXIT trap above never
+  # fires for it — clean up the clone manually before handing off.
+  rm -rf "$TMP_DIR"
+  exec "$REPO_ROOT/ai-bootstrap.sh" "$@"
+fi
+
 INSTALLER="$TMP_DIR/kit/install-ai-package.sh"
 chmod +x "$INSTALLER"
 
@@ -57,17 +75,4 @@ fi
 if [[ -d "$REPO_ROOT/graph-rag" || "${1:-}" == "--graph" ]]; then
   echo "Making sure the Neo4j architecture graph is up in $REPO_ROOT..."
   "$INSTALLER" --graph "$REPO_ROOT"
-fi
-
-# This script is the one thing NOT re-synced by --update above (it's what
-# does the cloning in the first place, so it can't rewrite itself mid-run) —
-# without this, a fix to ai-bootstrap.sh's own logic would silently never
-# reach repos that already have a copy of it, no matter how many times they
-# run it. Self-update as the LAST step, from the copy this run just cloned,
-# so it never affects the run in progress, only the next one.
-SELF="$TMP_DIR/kit/ai-bootstrap.sh"
-if [[ -f "$SELF" ]] && ! cmp -s "$SELF" "$REPO_ROOT/ai-bootstrap.sh" 2>/dev/null; then
-  cp "$SELF" "$REPO_ROOT/ai-bootstrap.sh"
-  chmod +x "$REPO_ROOT/ai-bootstrap.sh"
-  echo "ai-bootstrap.sh itself was updated to the latest version — review with 'git diff ai-bootstrap.sh' and commit it."
 fi
