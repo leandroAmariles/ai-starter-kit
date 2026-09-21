@@ -15,6 +15,18 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.7.0] - 2026-09-21
+
+Feat: add the `loop-spec` callable skill (`.ai/skills/loop-spec/`) — the spec-kit equivalent of
+`openspec-update-change`. spec-kit's own `/speckit-plan` and `/speckit-tasks` regenerate their
+artifact wholesale from `spec.md`, with no scoped "just fix this one requirement" mode; re-running
+them after implementation has started discards completed-task history and unrelated plan/tasks
+content. `loop-spec` closes that gap: it edits only the requirement/scenario/entity in `spec.md`
+that broke or changed, cascades that same scoped edit into `plan.md`/`tasks.md`, and hands off to
+`/speckit-implement` for just the delta — so a spec-kit feature can go through plan → tasks →
+implement again without redoing everything. Only useful if you chose the spec-kit workflow
+(`install-ai-package.sh --workflow speckit`).
+
 ## [1.6.3] - 2026-09-17
 
 Feat: `--graph` now pre-warms the `graph-rag` MCP server's `uvx` package cache right after writing

@@ -49,7 +49,8 @@ ai-starter-kit/
     │   ├── openspec-{propose,apply-change,update-change,explore,sync-specs,archive-change}/
     │   │   ← one of two alternative spec-driven workflows, see "Choosing a spec-driven workflow" below
     │   ├── neo4j-architecture-graph/    ← only useful once Step 2 (below) is installed
-    │   └── commit-and-push/             ← stage, commit, push, and open a PR from the template below
+    │   ├── commit-and-push/             ← stage, commit, push, and open a PR from the template below
+    │   └── loop-spec/                   ← scoped spec-kit spec/plan/tasks updates after implementation
     ├── templates/
     │   └── pull_request_template.md    ← installed to .github/pull_request_template.md by --copy
     └── prompts/                ← .prompt.md shortcuts for editors that support them (currently Copilot)
@@ -417,8 +418,13 @@ If you chose OpenSpec (see "Choosing a spec-driven workflow" above), the callabl
 `explore → propose → apply → sync-specs → archive`. If you chose spec-kit instead, use its own
 `/speckit-specify`, `/speckit-plan`, `/speckit-tasks`, `/speckit-implement` commands (and optional
 `/speckit-constitution`, `/speckit-clarify`, `/speckit-analyze`) — spec-kit generated those for you
-directly. Either way, `neo4j-architecture-graph` is also available for querying the local code
-graph if you installed Step 2. See `.ai/skills/README.md` and `.ai/prompts/README.md` for details.
+directly. This kit also adds `loop-spec` (`.ai/skills/loop-spec`) for spec-kit: after implementation
+starts (or finishes), if a requirement turns out wrong or scope changes, it revises just that
+requirement in `spec.md` and cascades the same scoped edit into `plan.md`/`tasks.md`, instead of
+re-running `/speckit-plan`/`/speckit-tasks` from scratch — the spec-kit equivalent of OpenSpec's
+`openspec-update-change`. Either way, `neo4j-architecture-graph` is also available for querying the
+local code graph if you installed Step 2. See `.ai/skills/README.md` and `.ai/prompts/README.md` for
+details.
 
 ### Opening pull requests
 
