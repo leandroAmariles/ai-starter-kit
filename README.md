@@ -369,8 +369,9 @@ they need the Java scanner and the approved parent POM:
 `--migration` copies `migration-tools/` (no-clobber) and gitignores `.ai/migration-context/`, where
 the scanner writes its XML. The parent POM (`com.bac.core:banca-digital-parent-pom:7.0.0-SNAPSHOT`)
 is deliberately **not** shipped in this public kit because it references an internal Artifactory.
-Then ask your agent to "generate migration context" and, once it reports `complete`, "migrate this
-repo to Spring Boot 4". Requires JDK 17+ and Maven. The scanner never edits the target; the
+Then just ask your agent to "migrate this repo to Spring Boot 4" (or `/migracion`): the `migracion`
+skill asks for whatever is missing and runs the two steps in order — `code-context-builder`, then
+`spring-boot-4-migration` once the context is `complete`. You can still invoke either step alone. Requires JDK 17+ and Maven. The scanner never edits the target; the
 migration skill edits only the repo you name and stops if the context is missing, stale or was
 generated for a different path. Generated context holds redacted-but-real configuration text — don't
 commit it.

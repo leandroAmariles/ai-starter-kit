@@ -29,6 +29,7 @@ New installer mode `--migration <repo>` copies the tool (no-clobber), creates
 the user places the parent POM at `.ai/migration-context/pom.xml`. Crawler changes vs. the original:
 it now also skips `.ai/` and `migration-tools/` (so the installed tool and the parent POM are not
 scanned as part of the target) and its default output moved to `.ai/migration-context/context.xml`.
+Also: the `migracion` skill is the single entry point — it asks for the target folder and parent POM, verifies prerequisites, and orchestrates `code-context-builder` → `spring-boot-4-migration` with a completeness gate between them.
 Also: `--migration <repo> --parent-pom <file>` installs your parent POM without it ever entering this
 repo; `ai-bootstrap.sh --migration [--parent-pom <file>]` runs it (and re-verifies it on later runs);
 the Copilot generator now also writes native VS Code agents `.github/agents/code-context-builder.agent.md`

@@ -46,6 +46,7 @@ This repository contains a canonical, portable startup package for AI coding age
 | openspec-archive-change | User wants to finalize and archive a completed change | `/opsx-archive` |
 | neo4j-architecture-graph | User wants to discover classes, implementations, dependencies, or cross-service impact | (automatic — query the local Neo4j graph, only if Step 2 / `--graph` was installed) |
 | commit-and-push | User wants to commit, push, or open a pull request | `/commit-and-push` |
+| migracion | User simply wants to migrate a service to Spring Boot 4 / Spring 7 / Jackson 3 ("migra este repo") — orchestrates the two skills below, asks for what is missing | `/migracion` (or natural language) |
 | code-context-builder | User wants a static inventory/context of a Java repo, or context before migrating | (natural language; needs `--migration`) |
 | spring-boot-4-migration | User wants to migrate to Spring Boot 4 / Spring 7 / Jackson 3 or the BAC parent | (natural language; needs `--migration` and the parent POM) |
 
