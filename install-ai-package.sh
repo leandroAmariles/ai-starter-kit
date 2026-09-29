@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 AI_SOURCE="$SCRIPT_DIR/.ai"
 GRAPH_RAG_SOURCE="$SCRIPT_DIR/graph-rag"
+MIGRATION_TOOLS_SOURCE="$SCRIPT_DIR/migration-tools"
 
 supports_color() {
   [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]] && [[ "${TERM:-}" != "dumb" ]]
@@ -56,6 +57,7 @@ Usage:
   $(basename "$0") --openspec <agent1,agent2,...> <destination-repo>
   $(basename "$0") --speckit <agent1,agent2,...> <destination-repo>
   $(basename "$0") --graph <destination-repo>
+  $(basename "$0") --migration <destination-repo> [--parent-pom <pom.xml>]
   $(basename "$0") --statusline <claude|copilot>
   $(basename "$0") --help
 
@@ -114,6 +116,12 @@ Modes:
              DEPENDS_ON_PROJECT/CALLS_SERVICE/SHARES_DATABASE edges still form: Phase 1
              computes them by querying the shared graph for already-ingested sibling
              projects, not by any project listing its siblings' paths.
+  --migration OPTIONAL: copy migration-tools/ (the Java code-context-builder used by the
+             code-context-builder and spring-boot-4-migration skills) into the destination and
+             create .ai/migration-context/. Never overwrites existing files. Needs JDK 17+ and
+             Maven at run time (checked only when the skill runs). The approved parent POM is NOT
+             shipped: pass --parent-pom <file> to copy yours to
+             <repo>/.ai/migration-context/pom.xml (never overwrites), or place it there yourself.
   --statusline OPTIONAL, user-level (not project-scoped): installs ~/.<target>/statusline.py and
              wires it into ~/.<target>/settings.json's statusLine, for <target> = "claude"
              (default) or "copilot". Also run automatically by --agents/--init whenever that
@@ -913,6 +921,53 @@ PYEOF
   esac
 }
 
+do_migration() {
+  local dest="${1:-}" parent_pom=""
+  if [[ "${2:-}" == "--parent-pom" ]]; then parent_pom="${3:-}"; fi
+  require_arg "$dest" "Missing destination repository for --migration"
+  ensure_dest_exists "$dest"
+  if [[ ! -d "$MIGRATION_TOOLS_SOURCE/code-context-builder" ]]; then
+    err "migration-tools source not found at $MIGRATION_TOOLS_SOURCE"
+    exit 1
+  fi
+  if [[ ! -d "$dest/.ai/skills/code-context-builder" ]]; then
+    warn "The code-context-builder/spring-boot-4-migration skills are not in $dest/.ai yet — run --copy or --update first."
+  fi
+  info "Copying $MIGRATION_TOOLS_SOURCE to $dest/migration-tools using no-clobber mode"
+  local output
+  output="$(cp -Rn "$MIGRATION_TOOLS_SOURCE" "$dest/" 2>&1 || true)"
+  [[ -n "$output" ]] && printf '%s
+' "$output"
+  mkdir -p "$dest/.ai/migration-context"
+  local gi="$dest/.gitignore"
+  if ! grep -qsx '.ai/migration-context/' "$gi"; then
+    printf '
+# generated migration context (redacted, but real config text)
+.ai/migration-context/
+' >> "$gi"
+    ok "Added .ai/migration-context/ to $gi"
+  fi
+  if [[ -n "$parent_pom" ]]; then
+    if [[ ! -f "$parent_pom" ]]; then
+      err "--parent-pom file not found: $parent_pom"
+      exit 1
+    fi
+    if [[ -f "$dest/.ai/migration-context/pom.xml" ]]; then
+      warn "$dest/.ai/migration-context/pom.xml already exists — leaving it as-is."
+    else
+      cp "$parent_pom" "$dest/.ai/migration-context/pom.xml"
+      ok "Installed the approved parent POM at $dest/.ai/migration-context/pom.xml"
+    fi
+  fi
+  command -v mvn >/dev/null 2>&1 || warn "Maven not found — required to run the code-context-builder."
+  command -v java >/dev/null 2>&1 || warn "Java not found — JDK 17+ is required to run the code-context-builder."
+  if [[ ! -f "$dest/.ai/migration-context/pom.xml" ]]; then
+    info "Next: place the approved BAC parent POM at $dest/.ai/migration-context/pom.xml (not shipped with the kit),"
+    info "then ask your agent to run the code-context-builder skill followed by spring-boot-4-migration."
+  fi
+  ok "migration-tools installed"
+}
+
 do_graph() {
   local dest="${1:-}"
   require_arg "$dest" "Missing destination repository for --graph"
@@ -1182,12 +1237,38 @@ $go_info"
   ok "Generated $output_file"
 }
 
+# Copilot/VS Code custom agents (.github/agents/<name>.agent.md) for the
+# migration pipeline: same body as the callable skill, plus VS Code's own
+# front-matter. Only generated when the skill exists in the destination.
+write_copilot_agent() {
+  local dest="$1" name="$2" title="$3" hint="$4" tools="$5"
+  local skill="$dest/.ai/skills/$name/SKILL.md"
+  [[ -f "$skill" ]] || return 0
+  local desc
+  desc="$(awk '/^---$/{c++; next} c==1 && /^description:/{sub(/^description:[ ]*/,""); print; exit}' "$skill")"
+  mkdir -p "$dest/.github/agents"
+  {
+    printf -- '---
+name: "%s"
+description: "%s"
+argument-hint: "%s"
+tools: %s
+user-invocable: true
+---
+'       "$title" "${desc//\"/\\\"}" "$hint" "$tools"
+    awk '/^---$/{c++; next} c>=2' "$skill"
+  } > "$dest/.github/agents/$name.agent.md"
+  ok "Generated $dest/.github/agents/$name.agent.md"
+}
+
 generate_copilot() {
   local dest="$1"
   combine_context_and_rules "$dest/.github/copilot-instructions.md" "$dest/.ai/context/README.md" "$dest/.ai/rules" "$dest/.ai/STARTUP.md"
   ok "Generated $dest/.github/copilot-instructions.md"
   copy_dir_if_present "$dest/.ai/skills" "$dest/.github/skills"
   copy_dir_if_present "$dest/.ai/prompts" "$dest/.github/prompts"
+  write_copilot_agent "$dest" code-context-builder "Code Context Builder"     "Provide the Java repository folder to scan" "[read, search, execute]"
+  write_copilot_agent "$dest" spring-boot-4-migration "Spring Boot 4 Migration"     "Provide the repository folder; schema-v2 context and target parent pom.xml must exist under .ai/migration-context"     "[read, search, edit, execute, web]"
   local skill_files=() skill_file
   while IFS= read -r skill_file; do skill_files+=("$skill_file"); done \
     < <(list_non_readme_markdown "$dest/.ai/context/skills")
@@ -1591,6 +1672,11 @@ do_check() {
     fi
   else
     info "graph-rag/ not installed (optional Step 2 — run --graph if you want it)"
+  fi
+
+  if [[ -d "$dest/migration-tools/code-context-builder" ]]; then
+    ok "migration-tools/code-context-builder present (optional Spring Boot 4 migration)"
+    [[ -f "$dest/.ai/migration-context/pom.xml" ]]       || info "Approved parent POM not found at .ai/migration-context/pom.xml — required by spring-boot-4-migration"
   fi
 
   if [[ -f "$dest/.github/pull_request_template.md" ]]; then
@@ -2071,6 +2157,9 @@ case "${1:-}" in
     ;;
   --graph)
     do_graph "${2:-}"
+    ;;
+  --migration)
+    do_migration "${2:-}" "${3:-}" "${4:-}"
     ;;
   --statusline)
     do_statusline "${2:-claude}"

@@ -50,10 +50,15 @@ ai-starter-kit/
     │   │   ← one of two alternative spec-driven workflows, see "Choosing a spec-driven workflow" below
     │   ├── neo4j-architecture-graph/    ← only useful once Step 2 (below) is installed
     │   ├── commit-and-push/             ← stage, commit, push, and open a PR from the template below
-    │   └── loop-spec/                   ← scoped spec-kit spec/plan/tasks updates after implementation
+    │   ├── loop-spec/                   ← scoped spec-kit spec/plan/tasks updates after implementation
+    │   ├── code-context-builder/        ← OPTIONAL Step 3: XML context for a Java repo (needs --migration)
+    │   └── spring-boot-4-migration/     ← OPTIONAL Step 3: Boot 4 / Spring 7 / Jackson 3 migration (needs --migration)
     ├── templates/
     │   └── pull_request_template.md    ← installed to .github/pull_request_template.md by --copy
     └── prompts/                ← .prompt.md shortcuts for editors that support them (currently Copilot)
+
+migration-tools/                ← OPTIONAL Step 3: Java tool behind the migration skills — see below
+└── code-context-builder/        ← Maven project (JDK 17+), JavaParser-based
 
 graph-rag/                      ← OPTIONAL Step 2: local Neo4j architecture graph — see below
 ├── README.md                    ← setup, multi-project config, cross-service edges
@@ -347,6 +352,28 @@ deliberately cannot do for you — see checklist step 7 above.
 
 If you skip Step 2 entirely, the `neo4j-architecture-graph` callable skill in `.ai/skills/` simply
 goes unused — it has no effect on Step 1's agent configuration.
+
+### Step 3 — Spring Boot 4 migration (optional)
+
+Two skills form a pipeline, ported from a pair of Copilot custom agents: `code-context-builder`
+(scan) then `spring-boot-4-migration` (edit). Both are already in `.ai/skills/` after Step 1, but
+they need the Java scanner and the approved parent POM:
+
+```bash
+# repo that already has the kit (bootstrap script committed):
+./ai-bootstrap.sh --migration --parent-pom /path/to/approved-parent/pom.xml
+# or, from a local clone of the kit:
+./install-ai-package.sh --migration /path/to/your-repo --parent-pom /path/to/approved-parent/pom.xml
+```
+
+`--migration` copies `migration-tools/` (no-clobber) and gitignores `.ai/migration-context/`, where
+the scanner writes its XML. The parent POM (`com.bac.core:banca-digital-parent-pom:7.0.0-SNAPSHOT`)
+is deliberately **not** shipped in this public kit because it references an internal Artifactory.
+Then ask your agent to "generate migration context" and, once it reports `complete`, "migrate this
+repo to Spring Boot 4". Requires JDK 17+ and Maven. The scanner never edits the target; the
+migration skill edits only the repo you name and stops if the context is missing, stale or was
+generated for a different path. Generated context holds redacted-but-real configuration text — don't
+commit it.
 
 ### Where each agent's files land
 

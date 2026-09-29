@@ -15,6 +15,26 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.8.0] - 2026-09-29
+
+Feat: add the Spring Boot 4 migration pipeline, ported from two VS Code/Copilot custom agents into
+agent-neutral callable skills. `code-context-builder` runs the bundled Java tool
+(`migration-tools/code-context-builder`, JavaParser) against a Maven repo and writes schema-v2 XML
+context (manifest with SHA-256, Maven model, redacted configs, production/test AST summaries,
+migration findings, parse errors) under `.ai/migration-context/`; `spring-boot-4-migration` consumes
+it to migrate the reactor to the BAC parent, Spring Boot 4, Spring Framework 7 and Jackson 3.
+New installer mode `--migration <repo>` copies the tool (no-clobber), creates
+`.ai/migration-context/` and gitignores it. Not shipped on purpose: the approved BAC parent POM
+(references an internal Artifactory) and any generated context (real AST/config of a bank service) —
+the user places the parent POM at `.ai/migration-context/pom.xml`. Crawler changes vs. the original:
+it now also skips `.ai/` and `migration-tools/` (so the installed tool and the parent POM are not
+scanned as part of the target) and its default output moved to `.ai/migration-context/context.xml`.
+Also: `--migration <repo> --parent-pom <file>` installs your parent POM without it ever entering this
+repo; `ai-bootstrap.sh --migration [--parent-pom <file>]` runs it (and re-verifies it on later runs);
+the Copilot generator now also writes native VS Code agents `.github/agents/code-context-builder.agent.md`
+and `spring-boot-4-migration.agent.md` from the skills; and `.ai/templates/spring-boot-4-migration-story.md`
+is the user-story template for a migration.
+
 ## [1.7.0] - 2026-09-21
 
 Feat: add the `loop-spec` callable skill (`.ai/skills/loop-spec/`) — the spec-kit equivalent of

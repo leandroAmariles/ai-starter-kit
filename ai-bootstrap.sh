@@ -18,6 +18,8 @@
 # refresh it. See "Recreating a deleted Neo4j container" in graph-rag/README.md.
 #
 # Usage:
+#   ./ai-bootstrap.sh --migration [--parent-pom <file>]
+#                                #  also install the Spring Boot 4 migration tooling
 #   ./ai-bootstrap.sh            # install/update .ai/, heal the graph if present
 #   ./ai-bootstrap.sh --graph    # also (re)run the optional Neo4j graph step,
 #                                #  even on a repo that doesn't have it yet
@@ -72,7 +74,17 @@ fi
 # is idempotent — it reuses graph-rag/.env exactly as-is (never touching
 # PROJECT_PATHS you configured) and starts its Docker container only if one
 # isn't already reachable, so this is safe and quick to run every time.
-if [[ -d "$REPO_ROOT/graph-rag" || "${1:-}" == "--graph" ]]; then
+ARGS=" $* "
+if [[ "$ARGS" == *" --migration "* || -d "$REPO_ROOT/migration-tools" ]]; then
+  PARENT_POM_ARGS=()
+  for ((i=1; i<=$#; i++)); do
+    if [[ "${!i}" == "--parent-pom" ]]; then j=$((i+1)); PARENT_POM_ARGS=(--parent-pom "${!j:-}"); fi
+  done
+  echo "Making sure the Spring Boot 4 migration tooling is installed in $REPO_ROOT..."
+  "$INSTALLER" --migration "$REPO_ROOT" ${PARENT_POM_ARGS[@]+"${PARENT_POM_ARGS[@]}"}
+fi
+
+if [[ -d "$REPO_ROOT/graph-rag" || "$ARGS" == *" --graph "* ]]; then
   echo "Making sure the Neo4j architecture graph is up in $REPO_ROOT..."
   "$INSTALLER" --graph "$REPO_ROOT"
 fi

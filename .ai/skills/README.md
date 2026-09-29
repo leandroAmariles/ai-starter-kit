@@ -37,6 +37,8 @@ Each `SKILL.md` defines:
 | `neo4j-architecture-graph` | Discover classes, implementations, dependencies, and cross-service relationships via the local Neo4j graph — only useful if `graph-rag/` (optional Step 2, `install-ai-package.sh --graph`) is installed |
 | `commit-and-push` | Stage, commit (Conventional Commits), push, and open a PR filled from `.github/pull_request_template.md`; also refreshes the Neo4j architecture graph's Phase 1 scan if `graph-rag/` is installed |
 | `loop-spec` | Revise a spec-kit feature's spec.md scoped to just the requirement/scenario that broke or changed, cascade that delta into plan.md/tasks.md, and hand off to `/speckit-implement` — the spec-kit equivalent of `openspec-update-change`; only useful if you chose the spec-kit workflow (`install-ai-package.sh --workflow speckit`) |
+| `code-context-builder` | Generate schema-v2 XML context (Maven model, AST summaries, findings, hashes) for a Java Maven repo with `migration-tools/code-context-builder` — requires `install-ai-package.sh --migration` |
+| `spring-boot-4-migration` | Migrate a Maven reactor to the BAC parent, Spring Boot 4, Spring 7 and Jackson 3 from that context — requires `--migration` and the parent POM at `.ai/migration-context/pom.xml` |
 
 The `openspec-*` skills are one of two **alternative** spec-driven workflows this kit supports —
 see the root `README.md`'s "Choosing a spec-driven workflow" section. They ship here as a static,
