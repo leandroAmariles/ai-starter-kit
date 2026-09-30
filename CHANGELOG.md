@@ -15,6 +15,13 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.11.0] - 2026-09-30
+
+Feat: `install-ai-package.sh --graph --update <repo>` syncs an already-installed `graph-rag/` to the
+kit's current code (previously neither `--graph` nor `--update` could). Overwrites only changed
+kit-owned files with a timestamped backup in `graph-rag/.update-backup/`, never touches `.env`,
+`data/` or `.venv/`, then runs the usual deps install + Phase 1 scan.
+
 ## [1.10.0] - 2026-09-30
 
 Feat: new callable skill `us-context-builder` with a bundled stdlib-only script (`us_context.py`).

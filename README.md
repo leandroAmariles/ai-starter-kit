@@ -272,6 +272,19 @@ missing on 3.14) — pinning avoids a dependency-install failure on an otherwise
 "3.11+" machine. `uv` also creates the venv without `pip` bundled, so dependency installation goes
 through `uv pip install` in that case instead of the venv's own `pip`.
 
+**Updating the graph code in a repo that already has it:**
+
+```bash
+./install-ai-package.sh --graph --update /path/to/your-repo
+```
+
+Plain `--graph` only copies `graph-rag/` when it is absent, and `--update` only syncs `.ai/`, so this
+is the way to pull in a newer kit's `graph-rag/` code. It overwrites only the kit-owned files that
+differ (saving each previous version in `graph-rag/.update-backup/<timestamp>/`), adds new ones, and
+never touches `.env`, `data/` or `.venv/`; files the kit no longer ships are left in place. It then
+runs the normal flow: dependency install, reuse or start Neo4j, Phase 1 scan. To refresh only the
+graph *data* after the code changed, you don't need this — just re-run `phase1_scan.py`.
+
 ### Querying the graph
 
 Two ways to actually use what Phase 1/2 built, both read-only:

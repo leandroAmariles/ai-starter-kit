@@ -52,6 +52,7 @@ Usage:
   $(basename "$0") --agents <copilot,claude,cursor,windsurf,jetbrains> <destination-repo>
   $(basename "$0") --sync <destination-repo>
   $(basename "$0") --update <destination-repo>
+  $(basename "$0") --graph --update <destination-repo>
   $(basename "$0") --check <destination-repo>
   $(basename "$0") --workflow <openspec|speckit|none> <destination-repo>
   $(basename "$0") --openspec <agent1,agent2,...> <destination-repo>
@@ -108,6 +109,10 @@ Modes:
              Compose, runs the Phase 1 scan). See graph-rag/README.md to configure multiple
              projects (PROJECT_PATHS). Every step degrades gracefully with an actionable
              warning if Docker/Python aren't available, instead of failing the install.
+             Add --update (--graph --update <repo>) to first sync an already-installed
+             graph-rag/ to the kit's current code — overwriting only changed kit-owned files
+             (previous versions saved in graph-rag/.update-backup/<timestamp>/) and never
+             touching .env, data/ or .venv/ — then re-run the usual deps install + Phase 1 scan.
              Before starting a new Neo4j container, checks whether one is already reachable
              at this repo's own graph-rag/.env NEO4J_URI (every repo ships the same default
              local-dev URI/credentials) — if so, joins that existing instance instead of
@@ -968,10 +973,66 @@ do_migration() {
   ok "migration-tools installed"
 }
 
+# Brings an already-installed graph-rag/ up to the kit's current code. Plain
+# --graph deliberately never does this (cp -n only copies when graph-rag/ is
+# absent), so a repo would otherwise stay on whatever version it first got.
+# Only kit-owned source is synced: .env, data/, .venv/, pipeline_tasks.md and
+# bytecode are the repo's own and are never touched. A file that differs is
+# overwritten, but its previous content is first saved under
+# graph-rag/.update-backup/<timestamp>/ so a local edit is never lost.
+# Files the kit no longer ships are left in place.
+sync_graph_rag_code() {
+  local dest="$1" src="$GRAPH_RAG_SOURCE" target="$1/graph-rag"
+  local backup="$target/.update-backup/$(date +%Y%m%d-%H%M%S)"
+  local added=0 updated=0 file rel
+
+  mkdir -p "$target/data"
+  while IFS= read -r -d '' file; do
+    rel="${file#"$src"/}"
+    case "$rel" in
+      .env|.venv/*|data/*|pipeline_tasks.md|.update-backup/*|*__pycache__*|*.pyc) continue ;;
+    esac
+    if [[ ! -e "$target/$rel" ]]; then
+      mkdir -p "$(dirname "$target/$rel")"
+      cp "$file" "$target/$rel"
+      added=$((added + 1))
+      info "  added   graph-rag/$rel"
+    elif ! cmp -s "$file" "$target/$rel"; then
+      mkdir -p "$(dirname "$backup/$rel")"
+      cp "$target/$rel" "$backup/$rel"
+      cp "$file" "$target/$rel"
+      updated=$((updated + 1))
+      info "  updated graph-rag/$rel"
+    fi
+  done < <(find "$src" -type f -print0)
+
+  if (( added + updated == 0 )); then
+    ok "graph-rag/ code already matches the kit."
+  else
+    ok "graph-rag/ code synced: $added added, $updated updated (.env, data/ and .venv/ untouched)."
+    (( updated > 0 )) && info "Previous versions of the $updated updated file(s) saved in $backup"
+  fi
+}
+
 do_graph() {
-  local dest="${1:-}"
+  local dest="" update=false arg
+  for arg in "$@"; do
+    if [[ "$arg" == "--update" ]]; then update=true; elif [[ -z "$dest" ]]; then dest="$arg"; fi
+  done
   require_arg "$dest" "Missing destination repository for --graph"
   ensure_dest_exists "$dest"
+
+  if [[ "$update" == true ]]; then
+    if [[ ! -d "$dest/graph-rag" ]]; then
+      warn "$dest/graph-rag not found — nothing to update; installing it from scratch instead."
+    elif [[ ! -d "$GRAPH_RAG_SOURCE" ]]; then
+      err "graph-rag source not found at $GRAPH_RAG_SOURCE"
+      exit 1
+    else
+      info "Updating $dest/graph-rag to the kit's current code..."
+      sync_graph_rag_code "$dest"
+    fi
+  fi
 
   if [[ ! -d "$dest/graph-rag" ]]; then
     if [[ ! -d "$GRAPH_RAG_SOURCE" ]]; then
@@ -2156,7 +2217,7 @@ case "${1:-}" in
     do_check "${2:-}"
     ;;
   --graph)
-    do_graph "${2:-}"
+    do_graph "${2:-}" "${3:-}"
     ;;
   --migration)
     do_migration "${2:-}" "${3:-}" "${4:-}"

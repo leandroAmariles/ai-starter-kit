@@ -4,3 +4,4 @@ data/*.json
 pipeline_tasks.md
 __pycache__/
 *.pyc
+.update-backup/
