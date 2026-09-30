@@ -15,6 +15,7 @@ regardless of the specific context of the service.
 | `auto-enrichment.md` | Protocol to auto-feed `<AI_ROOT>/` when new patterns are detected |
 | `session-identity-canary.md` | Context-integrity self-check: print a fixed rules-loaded line at the first turn of a session, and treat an inability to recall which rules are active as a context-drift signal. Delete this file to disable it. |
 | `skill-transparency.md` | At every turn, state which callable skill and/or context-skill(s) the response draws on (or that none apply). Delete this file to disable it. |
+| `spec-branch-naming.md` | spec-kit only: `/speckit-specify` must create the branch as `<type>/<US>-<slug>` (feature, fix, ...) and point `.specify/feature.json` at the matching `specs/<US>-<slug>` directory, instead of spec-kit's default `NNN-slug`. |
 
 ## Scope
 

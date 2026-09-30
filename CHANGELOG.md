@@ -15,6 +15,15 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.9.0] - 2026-09-30
+
+Fix: `/speckit-specify` created branches and spec directories as spec-kit's default `NNN-slug`
+(the git extension's `branch_template` defaults to `{number}-{slug}`), ignoring the team's
+`<type>/<US>-<slug>` convention, and `.specify/feature.json` therefore pointed at the wrong
+directory. New rule `rules/spec-branch-naming.md` makes the agent ask for the US number and change
+type, pass `GIT_BRANCH_NAME` / `SPECIFY_FEATURE_DIRECTORY`, and verify branch, directory and
+`feature.json` agree.
+
 ## [1.8.0] - 2026-09-29
 
 Feat: add the Spring Boot 4 migration pipeline, ported from two VS Code/Copilot custom agents into
