@@ -15,6 +15,13 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.10.0] - 2026-09-30
+
+Feat: new callable skill `us-context-builder` with a bundled stdlib-only script (`us_context.py`).
+From an Azure DevOps work item URL it calls the REST API with `AZURE_DEVOPS_PAT` (Work Items: Read,
+never stored) and writes `.ai/us-context/US<id>/context.md`: metadata, description, acceptance
+criteria, repro steps, comments, links, downloaded images, and the suggested branch name.
+
 ## [1.9.0] - 2026-09-30
 
 Fix: `/speckit-specify` created branches and spec directories as spec-kit's default `NNN-slug`
