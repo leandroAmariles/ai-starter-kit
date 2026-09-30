@@ -6,7 +6,7 @@ prefix, no User Story number — so this rule overrides that default. Do **not**
 
 ## Before specifying
 
-1. Get the **User Story number** (e.g. `US1234`) and the **change type** from the user's request. If
+1. Get the **User Story number** (e.g. `1234`) and the **change type** from the user's request. If
    either is missing, ask for it — never invent a number and never fall back to `001`.
 2. Map the type to a prefix: `feature`, `fix`, `hotfix`, `chore`, `refactor`, `docs`. Default to
    `feature` only if the user clearly describes new functionality.
@@ -14,23 +14,23 @@ prefix, no User Story number — so this rule overrides that default. Do **not**
 
 ## Names to use
 
-- Directory name: `<US>-<slug>` (e.g. `US1234-export-invoices`)
-- Branch name: `<type>/<US>-<slug>` (e.g. `feature/US1234-export-invoices`)
+- Directory name: `<slug>` (e.g. `1234-export-invoices`)
+- Branch name: `<type>/<slug>` (e.g. `feature/1234-export-invoices`)
 
 The branch's **last path segment must equal the spec directory name** — the statusline token
 tracker and `loop-spec` match `specs/<last segment of branch>/`.
 
 ## How to apply it
 
-- Pass `GIT_BRANCH_NAME=<type>/<US>-<slug>` to the `before_specify` git hook so it uses that exact
+- Pass `GIT_BRANCH_NAME=<type>/<slug>` to the `before_specify` git hook so it uses that exact
   branch instead of auto-generating `NNN-slug`.
-- Set `SPECIFY_FEATURE_DIRECTORY=specs/<US>-<slug>` so the directory is created with the same name.
+- Set `SPECIFY_FEATURE_DIRECTORY=specs/<slug>` so the directory is created with the same name.
 - Write `.specify/feature.json` with that **resolved** path (`{"feature_directory":
-  "specs/<US>-<slug>"}`), never the literal variable name.
+  "specs/<slug>"}`), never the literal variable name.
 
 ## Verify before finishing
 
 Run `git branch --show-current` and read `.specify/feature.json`. Confirm the branch is
-`<type>/<US>-<slug>`, the directory exists, and `feature.json` points to it. If any of the three
+`<type>/<slug>`, the directory exists, and `feature.json` points to it. If any of the three
 disagree, fix it (rename the branch or directory, rewrite `feature.json`) and report what you
 changed. Never leave the work on the default branch.
