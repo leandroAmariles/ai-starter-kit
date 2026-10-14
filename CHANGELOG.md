@@ -15,6 +15,15 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.12.0] - 2026-10-14
+
+Feat: new rule `rules/http-test-requests.md` — after `/speckit-implement` / `/opsx-apply`, if the
+implementation added or changed endpoints, the agent writes `requests.http` (test cases that validate the spec's logic: one request
+per requirement/scenario, rule boundaries, edge cases) inside the spec folder
+(`specs/<slug>/` or `openspec/changes/<name>/`). New callable skill `new-properties`: lists the
+config properties introduced by the implementation (from the diff) with values as a YAML block for
+the environment's config yml; prints nothing when there are none.
+
 ## [1.11.0] - 2026-09-30
 
 Feat: `install-ai-package.sh --graph --update <repo>` syncs an already-installed `graph-rag/` to the

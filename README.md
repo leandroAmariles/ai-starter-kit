@@ -51,6 +51,7 @@ ai-starter-kit/
     │   ├── neo4j-architecture-graph/    ← only useful once Step 2 (below) is installed
     │   ├── commit-and-push/             ← stage, commit, push, and open a PR from the template below
     │   ├── us-context-builder/          ← Azure DevOps work item URL → Markdown context (text + images)
+    │   ├── new-properties/              ← config properties added by an implementation, as YAML (nothing if none)
     │   ├── loop-spec/                   ← scoped spec-kit spec/plan/tasks updates after implementation
     │   ├── code-context-builder/        ← OPTIONAL Step 3: XML context for a Java repo (needs --migration)
     │   └── spring-boot-4-migration/     ← OPTIONAL Step 3: Boot 4 / Spring 7 / Jackson 3 migration (needs --migration)
