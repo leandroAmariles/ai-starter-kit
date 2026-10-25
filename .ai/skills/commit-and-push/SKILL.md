@@ -50,7 +50,11 @@ without the user asking — committing and opening a PR are visible, shared-stat
      claim testing you didn't do
    - Leave every other checklist item **unchecked** — those confirm things only the human
      author/reviewer can actually verify (self-review, docs, style), not you
-   - **Token usage (if present):** if `specs/<current-branch>/.token-usage.json` exists (written by
+   - **Token usage (if present):** resolve the spec folder as `specs/<last path segment of the
+     branch>/` (branch `feature/LAB-12-x` → `specs/LAB-12-x/`); if there is no exact match, use the
+     single `specs/<TICKET>-*/` folder sharing the branch's ticket id (`chore/LAB-12-fix` →
+     `specs/LAB-12-x/`), and if that is ambiguous or absent, omit the section. If
+     `<spec-folder>/.token-usage.json` exists (written by
      `~/.claude/statusline.py` and/or `~/.copilot/statusline.py`, configured via
      `install-ai-package.sh --statusline <claude|copilot>`), it's a JSON object keyed by tool name
      (e.g. `"claude"`, `"copilot"`), each with `input_tokens`/`output_tokens`/`turns` and,
@@ -113,7 +117,7 @@ without the user asking — committing and opening a PR are visible, shared-stat
   the PR themselves (`gh auth login`, or the web UI) — do not fabricate a PR URL.
 - If a PR already exists for the branch, do not create a second one; report the existing one.
 - Never invent a token-usage figure for the PR body — only include it when
-  `specs/<branch>/.token-usage.json` actually exists, and always copy its numbers verbatim.
+  the resolved spec folder's `.token-usage.json` actually exists, and always copy its numbers verbatim.
 - Never let the graph refresh (step 9) block, delay, or roll back the commit/push/PR — it runs
   after they've already succeeded, only when `graph-rag/.venv/` exists, and a failure there is a
   warning, never a reason to report this skill as failed.

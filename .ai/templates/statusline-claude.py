@@ -15,6 +15,7 @@ Reads the JSON payload Claude Code pipes to this script's stdin after every
 response; see https://code.claude.com/docs/en/statusline
 """
 import json
+import re
 import os
 import sys
 from datetime import datetime, timezone
@@ -86,6 +87,24 @@ def _current_branch(repo_root: Path) -> str | None:
     return None
 
 
+def _resolve_spec_dir(repo_root: Path, branch: str) -> Path | None:
+    """specs/<branch> when it exists; otherwise, for branches like
+    "chore/LAB-78-fix-x" whose slug differs from the spec folder, the single
+    specs/<TICKET>-* folder sharing the branch's ticket id (e.g. LAB-78).
+    Ambiguous or no match -> None (never guess between two specs)."""
+    specs = repo_root / "specs"
+    exact = specs / branch
+    if exact.is_dir():
+        return exact
+    m = re.search(r"[A-Za-z]+-\d+", branch)
+    if not m or not specs.is_dir():
+        return None
+    ticket = m.group(0).lower()
+    matches = [d for d in specs.iterdir() if d.is_dir()
+               and re.match(re.escape(ticket) + r"(?![0-9])", d.name.lower())]
+    return matches[0] if len(matches) == 1 else None
+
+
 TOOL_KEY = "claude"
 
 
@@ -106,8 +125,8 @@ def _track_spec_usage(cwd: str | None, in_tok, out_tok, model_id: str | None) ->
     branch = _current_branch(repo_root)
     if not branch:
         return
-    spec_dir = repo_root / "specs" / branch
-    if not spec_dir.is_dir():
+    spec_dir = _resolve_spec_dir(repo_root, branch)
+    if spec_dir is None:
         return
 
     usage_file = spec_dir / ".token-usage.json"

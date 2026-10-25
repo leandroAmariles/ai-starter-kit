@@ -15,6 +15,17 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.12.1] - 2026-10-24
+
+Fix: PRs silently omitted the token-usage line. The statusline scripts and `commit-and-push` looked
+for `specs/<branch>/`, so only a branch whose last segment equals the spec folder (the feature
+branch itself) was tracked; follow-up branches such as `chore/LAB-78-…` or `docs/LAB-78-…` never
+matched and their PRs had no usage. Both `statusline-claude.py` and `statusline-copilot.py` now
+resolve the folder via `_resolve_spec_dir` (exact match, else the single `specs/<TICKET>-*`
+sharing the branch's ticket id; ambiguous → untracked), and `commit-and-push` step 7 documents the
+same resolution (last path segment, not the full branch name). `--statusline` never overwrites an existing script, so copy the updated template over
+`~/.claude/statusline.py` / `~/.copilot/statusline.py` by hand.
+
 ## [1.12.0] - 2026-10-14
 
 Feat: new rule `rules/http-test-requests.md` — after `/speckit-implement` / `/opsx-apply`, if the
