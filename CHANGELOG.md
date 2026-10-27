@@ -15,6 +15,12 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.12.2] - 2026-10-27
+
+Fix: make the token-usage PR section deterministic. Added a "Token usage (if `.token-usage.json`
+exists)" section to the PR template, and clarified in `commit-and-push` that "(if present)" refers
+to the file, not to the template section.
+
 ## [1.12.1] - 2026-10-24
 
 Fix: PRs silently omitted the token-usage line. The statusline scripts and `commit-and-push` looked

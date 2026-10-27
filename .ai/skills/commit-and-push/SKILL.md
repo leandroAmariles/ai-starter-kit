@@ -50,7 +50,7 @@ without the user asking — committing and opening a PR are visible, shared-stat
      claim testing you didn't do
    - Leave every other checklist item **unchecked** — those confirm things only the human
      author/reviewer can actually verify (self-review, docs, style), not you
-   - **Token usage (if present):** resolve the spec folder as `specs/<last path segment of the
+   - **Token usage (only if `.token-usage.json` exists — "if present" refers to that file, not to the template section, which is always in the template):** resolve the spec folder as `specs/<last path segment of the
      branch>/` (branch `feature/LAB-12-x` → `specs/LAB-12-x/`); if there is no exact match, use the
      single `specs/<TICKET>-*/` folder sharing the branch's ticket id (`chore/LAB-12-fix` →
      `specs/LAB-12-x/`), and if that is ambiguous or absent, omit the section. If

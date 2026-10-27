@@ -19,6 +19,10 @@
 
 <!-- Steps to reproduce/verify, test commands run, coverage impact -->
 
+## Token usage (if `.token-usage.json` exists)
+
+<!-- Fill from <spec-folder>/.token-usage.json; delete this whole section if the file doesn't exist -->
+
 ## Checklist
 
 - [ ] Tests added/updated and passing
