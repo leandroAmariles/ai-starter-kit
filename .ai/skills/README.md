@@ -42,6 +42,7 @@ Each `SKILL.md` defines:
 | `migracion` | Single entry point for a Spring Boot 4 migration: asks for the missing inputs, checks/installs the tooling, then runs `code-context-builder` → `spring-boot-4-migration` with a gate between them |
 | `code-context-builder` | Generate schema-v2 XML context (Maven model, AST summaries, findings, hashes) for a Java Maven repo with `migration-tools/code-context-builder` — requires `install-ai-package.sh --migration` |
 | `spring-boot-4-migration` | Migrate a Maven reactor to the BAC parent, Spring Boot 4, Spring 7 and Jackson 3 from that context — requires `--migration` and the parent POM at `.ai/migration-context/pom.xml` |
+| `jmeter-load-test` | Design and execute a JMeter load test against an endpoint: asks for the endpoint, builds the `.jmx`, runs in CLI mode, and reports results; compares against SLOs and draws conclusions only when the user provides an objective |
 
 The `openspec-*` skills are one of two **alternative** spec-driven workflows this kit supports —
 see the root `README.md`'s "Choosing a spec-driven workflow" section. They ship here as a static,

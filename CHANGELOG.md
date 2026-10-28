@@ -15,6 +15,20 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.13.0] - 2026-10-28
+
+Feat: new callable skill `jmeter-load-test`. Designs and executes a JMeter load
+test against a service endpoint: asks for the target endpoint (required) and
+environment, verifies JMeter is installed, builds the `.jmx` test plan (thread
+group, HTTP defaults/samplers, CSV data set, header manager, assertions), runs
+it in CLI mode (`jmeter -n -e -o`), and reports throughput, latency
+percentiles, and error rate. If the user provides a load objective (SLOs), it
+compares measured results against each criterion with pass/fail and
+conclusions; without one it reports raw results only and never invents
+targets. Guardrails: never runs load against unauthorized environments
+(QA/PRE/PROD need explicit approval), never hardcodes credentials in the
+`.jmx`, and keeps `*.jtl`/`report/` out of version control.
+
 ## [1.12.2] - 2026-10-27
 
 Fix: make the token-usage PR section deterministic. Added a "Token usage (if `.token-usage.json`
