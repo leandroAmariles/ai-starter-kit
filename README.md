@@ -2,8 +2,8 @@
 
 A portable, multi-agent AI configuration package for software projects. Write your team's
 architecture patterns, coding rules, and workflows **once**, in one agent-neutral format, and
-generate the native configuration files for **GitHub Copilot, Claude, Cursor, Windsurf, and
-JetBrains AI** with a single script.
+generate the native configuration files for **GitHub Copilot, Claude, Cursor, Windsurf,
+JetBrains AI, and Google Antigravity** with a single script.
 
 Works for a personal project or an entire company: drop one small bootstrap script into your repo
 (see "Installation" below), run it, and every supported AI agent starts a session already knowing
@@ -15,7 +15,7 @@ changed in this kit since — see "Versioning & updates".
 Most teams end up writing the same "here's our architecture / here's our commit format / here's
 our testing style" instructions over and over — once per AI tool, in that tool's own format and
 location (`copilot-instructions.md`, `CLAUDE.md`, `.cursorrules`, `.windsurfrules`,
-`.aiassistant/rules/`...). They drift out of sync the moment someone updates one and forgets the
+`.aiassistant/rules/`, `GEMINI.md` / `.agents/`...). They drift out of sync the moment someone updates one and forgets the
 others.
 
 This kit keeps a **single canonical source** (`.ai/`) and an installer script that
@@ -165,7 +165,7 @@ none), and whether to install the optional Neo4j graph — then runs every step 
 ./install-ai-package.sh --scan /path/to/your-repo
 
 # 4. Generate native files for the agent(s) you use
-./install-ai-package.sh --agents copilot,claude,cursor,windsurf,jetbrains /path/to/your-repo
+./install-ai-package.sh --agents copilot,claude,cursor,windsurf,jetbrains,antigravity /path/to/your-repo
 
 # 5. Install the chosen workflow for each agent via its official CLI (openspec or specify)
 ./install-ai-package.sh --openspec copilot,claude,cursor /path/to/your-repo
@@ -202,7 +202,7 @@ pick one, or neither:
 | What ships in this kit as a default/fallback | Static `.ai/skills/openspec-*` + `.ai/prompts/opsx-*`, a frozen snapshot of the `openspec` CLI's own generated output | Nothing static — always delegated to the official CLI |
 | What actually makes it work | Run `--openspec <agents> <repo>` — this runs the real `openspec init --tools <slug> --force` CLI (via `npx` if not installed), which creates **`openspec/config.yaml` + `changes/`** (the static skill files alone have nothing to act on without this) and overwrites the frozen snapshot with your installed CLI's current version | Run `--speckit <agents> <repo>` — runs `specify init --here --force --non-interactive --integration <slug>` (via `uv`/`uvx` if not installed) |
 | Workflow | propose → apply → archive | constitution → specify → clarify → plan → tasks → analyze → implement |
-| Where its files land | Wherever `openspec init --tools <slug>` puts them per agent (confirmed against CLI 1.13.0: `.claude/skills/openspec-*` + `.claude/commands/opsx/*`, `.cursor/skills/openspec-*` + `.cursor/commands/opsx/*`, and — for windsurf — `.devin/skills/openspec-*` + `.devin/workflows/opsx-*`, **not** under `.windsurf/`; see the note below the next table) — until you run `--openspec`, only the static snapshot from `.ai/skills/openspec-*`/`.ai/prompts/opsx-*` is present | Wherever `specify init --integration <agent>` puts them (confirmed: `.github/skills/speckit-*` for Copilot, `.claude/skills/speckit-*` for Claude) |
+| Where its files land | Wherever `openspec init --tools <slug>` puts them per agent (confirmed against CLI 1.13.0: `.claude/skills/openspec-*` + `.claude/commands/opsx/*`, `.cursor/skills/openspec-*` + `.cursor/commands/opsx/*`, `.agents/skills/openspec-*` + `.agents/workflows/opsx-*` for Antigravity, and — for windsurf — `.devin/skills/openspec-*` + `.devin/workflows/opsx-*`, **not** under `.windsurf/`; see the note below the next table) — until you run `--openspec`, only the static snapshot from `.ai/skills/openspec-*`/`.ai/prompts/opsx-*` is present | Wherever `specify init --integration <agent>` puts them (confirmed: `.github/skills/speckit-*` for Copilot, `.claude/skills/speckit-*` for Claude, `.agents/skills/speckit-*` for Antigravity) |
 
 Picking `speckit` or `none` with `--workflow` **removes** `.ai/skills/openspec-*` and
 `.ai/prompts/opsx-*` from the destination's `.ai/` before generation, so they never reach any
@@ -221,6 +221,7 @@ each other's, and the installer maps what it could confirm by actually running e
 | `cursor` | `cursor` | `cursor-agent` |
 | `windsurf` | `devin` | *(not currently listed as a spec-kit integration)* |
 | `jetbrains` | *(no confirmed slug — a `junie` value exists in OpenSpec's list, unclear if it's the same product as "JetBrains AI Assistant")* | *(same uncertainty)* |
+| `antigravity` (or `agy`) | `antigravity` | `agy` |
 
 **About `windsurf` → `devin`:** as of OpenSpec CLI 1.13.0, `openspec init --help` lists `devin` as
 the real `--tools` value and says `windsurf` is "now devin" — an accepted-but-deprecated alias, kept
@@ -261,7 +262,7 @@ Run it whenever you're ready:
 This copies `graph-rag/` into the target repo, then bootstraps it: creates `graph-rag/.venv` and
 installs its Python dependencies, starts a local Neo4j container (`docker compose`), runs the
 deterministic Phase 1 scan (AST-parses Java into `Class` nodes, everything else into `Document`
-nodes), and writes a `graph-rag` MCP server entry into the target repo's `.mcp.json` (see "Querying
+nodes), and writes a `graph-rag` MCP server entry into the target repo's `.mcp.json` (plus `.agents/plugins/graph-rag/mcp_config.json` when Antigravity is installed; see "Querying
 the graph" below). Prerequisites: Docker + Docker Compose, and either `uv`/`uvx` or Python 3.11+.
 Each of these steps prints a warning and skips gracefully — without failing — if a prerequisite is
 missing; the warning includes the exact command to finish setup manually once you have it.
@@ -400,6 +401,7 @@ commit it.
 | Cursor | `.cursorrules` | `.cursor/rules/<slug>.mdc` | `.cursor/skills/<name>/SKILL.md` | Yes — `.cursor/commands/` |
 | Windsurf | `.windsurfrules` | `.windsurf/rules/<slug>.md` | `.windsurf/workflows/<name>.md` | No — equivalent content already in the workflow file |
 | JetBrains AI | `.aiassistant/rules/project.md` (+ `AGENTS.md` overview) | `.aiassistant/rules/<slug>.md` | Not distributed yet (no confirmed native convention) | No |
+| Antigravity | `GEMINI.md` | `.agents/rules/<slug>.md` (`trigger: always_on`) | `.agents/skills/<name>/SKILL.md` | No — `.agents/skills/` already provides native `/<name>` slash commands and semantic discovery |
 
 Each agent's main file is generated by concatenating `.ai/context/README.md` with every file
 under `.ai/rules/`. Context-skills (`.ai/context/skills/*.md`, passive/always-loaded) and callable
@@ -440,7 +442,7 @@ based on your own credit-to-dollar conversion. Coverage caveat that's also writt
 `note` field: only each tool's own main thread is counted — subagent/Task-tool token usage isn't
 included, since there's no verified way to capture that today. Cursor CLI has an officially
 documented equivalent (with per-turn tokens) that isn't wired up yet — no confirmed usage of it in
-this kit's own projects to build/test against. Windsurf's hook system and JetBrains have no
+this kit's own projects to build/test against. Windsurf's and Antigravity's hook systems and JetBrains have no
 confirmed equivalent.
 
 ## Day-to-day usage

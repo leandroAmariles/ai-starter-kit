@@ -1,7 +1,7 @@
 # AI Workspace Starter Kit
 
 ## 1. What is this project
-This repository contains a canonical, portable startup package for AI coding agents. It centralizes team standards, context-skills, and reusable workflows for your microservices/projects, and is designed to work consistently with GitHub Copilot, Claude, Cursor, Windsurf, and JetBrains AI.
+This repository contains a canonical, portable startup package for AI coding agents. It centralizes team standards, context-skills, and reusable workflows for your microservices/projects, and is designed to work consistently with GitHub Copilot, Claude, Cursor, Windsurf, JetBrains AI, and Google Antigravity.
 
 ## 2. Critical conventions
 | Convention | Description |
@@ -55,7 +55,7 @@ This repository contains a canonical, portable startup package for AI coding age
 The "Optional Command" column above is this kit's own static naming (from `<AI_ROOT>/prompts/`),
 accurate until you run `install-ai-package.sh --openspec <agents> <repo>`. That command replaces it
 with the real `openspec` CLI's own generated commands, whose exact syntax differs per agent and is
-not guaranteed to stay `/opsx-<name>` (confirmed: Cursor keeps `/opsx-<name>`, Claude Code namespaces
+not guaranteed to stay `/opsx-<name>` (confirmed: Cursor and Antigravity keep `/opsx-<name>`, Claude Code namespaces
 it as `/opsx:<name>`, and Windsurf — listed by the CLI as "Devin Desktop (formerly Windsurf)" — uses
 `/openspec-<name>`). When in doubt, prefer natural language or the skill name itself
 (`openspec-propose`, ...), both of which stay correct regardless of which command syntax is current.
@@ -79,7 +79,7 @@ Easiest: `./install-ai-package.sh --init <target-repo>` — interactive wizard f
 2. Run `./install-ai-package.sh --copy <target-repo>` to install `<AI_ROOT>/` (i.e. `.ai/`) into the target repo.
 3. Run `./install-ai-package.sh --workflow <openspec|speckit|none> <target-repo>` to choose the spec-driven workflow (defaults to openspec if skipped).
 4. Run `./install-ai-package.sh --scan <target-repo>` to generate project-specific context.
-5. Run `./install-ai-package.sh --agents copilot,claude <target-repo>` to distribute to native agent directories (comma-separated: `copilot`, `claude`, `cursor`, `windsurf`, `jetbrains`).
+5. Run `./install-ai-package.sh --agents copilot,claude <target-repo>` to distribute to native agent directories (comma-separated: `copilot`, `claude`, `cursor`, `windsurf`, `jetbrains`, `antigravity`).
 6. If step 3 chose `openspec`/`speckit`, run `./install-ai-package.sh --openspec <agents> <target-repo>` or `--speckit <agents> <target-repo>` to install it per agent via the official CLI.
 7. Run `./install-ai-package.sh --sync <target-repo>` after editing `<AI_ROOT>/` to regenerate native files for whichever agents are already detected in the repo.
 8. Run `./install-ai-package.sh --check <target-repo>` to validate everything landed correctly (per-agent files, workflow CLI setup, prerequisites for what you installed).
@@ -91,3 +91,4 @@ Easiest: `./install-ai-package.sh --init <target-repo>` — interactive wizard f
 | Cursor | `.cursorrules` | `.cursor/skills/<name>/SKILL.md` | Yes — `.cursor/commands/` |
 | Windsurf | `.windsurfrules` | `.windsurf/workflows/<name>.md` | No — equivalent content already in the workflow file |
 | JetBrains AI | `.aiassistant/rules/project.md` (+ `AGENTS.md` overview) | Not distributed yet (no confirmed native convention) | No |
+| Antigravity | `GEMINI.md` (+ `.agents/rules/*.md`) | `.agents/skills/<name>/SKILL.md` | No — `.agents/skills/` already exposes `/<name>` slash commands natively |

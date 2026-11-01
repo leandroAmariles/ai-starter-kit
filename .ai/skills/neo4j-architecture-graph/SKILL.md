@@ -43,7 +43,7 @@ content-only searches that do not require relationships.
 
 ## How to query the graph
 
-If `.mcp.json` has a `graph-rag` MCP server configured, prefer its tools
+If `.mcp.json` (or `.agents/plugins/graph-rag/mcp_config.json` in Antigravity) has a `graph-rag` MCP server configured, prefer its tools
 (`mcp__graph-rag__graph-rag-read_neo4j_cypher` / `mcp__graph-rag__graph-rag-get_neo4j_schema`) for
 Cypher above — read-only by design. Otherwise, run
 `graph-rag/queries/graph_rag_query.py "<question>"` (vector search + graph traversal) or connect

@@ -15,6 +15,14 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.14.0] - 2026-11-01
+
+Feat: add first-class Google Antigravity (`antigravity` / `agy`) compatibility to `install-ai-package.sh`:
+- `--agents antigravity` (or alias `agy`, and option `6` in `--init`) generates `GEMINI.md` at the repository root (combining `.ai/context/README.md`, `.ai/rules/*.md`, and the `STARTUP.md` skill-routing directive inside a managed section, avoiding any collision with JetBrains AI's `AGENTS.md`), distributes callable skills to `.agents/skills/<name>/SKILL.md`, and writes context-skills to `.agents/rules/<slug>.md` with `trigger: always_on` YAML front-matter.
+- `--openspec antigravity <repo>` maps to OpenSpec CLI's `--tools antigravity`, and `--speckit antigravity <repo>` maps to Specify CLI's `--integration agy` (confirmed against both official CLIs); `prune_workflow()` cleans `.agents/skills/openspec-*` and `.agents/workflows/opsx-*.md` when switching workflows, and `hook_speckit_graph_rag()` hooks `.agents/skills/speckit-{plan,tasks,implement}/SKILL.md`.
+- `--graph` (and `generate_antigravity` when `graph-rag/.env` is already present) also writes `.agents/plugins/graph-rag/plugin.json` and `mcp_config.json` so Antigravity discovers the `graph-rag` Neo4j MCP server in the workspace alongside `.mcp.json`.
+- `detect_agents()` and `--check` now detect and validate Antigravity installations (`GEMINI.md` and `.agents/skills/*/SKILL.md` front-matter).
+
 ## [1.13.0] - 2026-10-28
 
 Feat: new callable skill `jmeter-load-test`. Designs and executes a JMeter load

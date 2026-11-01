@@ -30,10 +30,11 @@ skills in `<AI_ROOT>/skills/`.
 - **Claude** — `.claude/commands/` (Claude Code's native custom-slash-command directory)
 - **Cursor** — `.cursor/commands/`
 
-Windsurf and JetBrains AI don't get a separate copy of these — Windsurf already gets equivalent,
+Windsurf, Antigravity, and JetBrains AI don't get a separate copy of these — Windsurf already gets equivalent,
 fuller content as `.windsurf/workflows/<name>.md` generated directly from `<AI_ROOT>/skills/*`
-(see `<AI_ROOT>/skills/README.md`), and JetBrains AI has no confirmed native command-file
-convention in this kit yet. This only describes this kit's own static/frozen OpenSpec snapshot: once
+(see `<AI_ROOT>/skills/README.md`), Antigravity's `.agents/skills/<name>/SKILL.md` already provides
+native `/<name>` slash commands and semantic discovery without separate prompt/workflow files, and
+JetBrains AI has no confirmed native command-file convention in this kit yet. This only describes this kit's own static/frozen OpenSpec snapshot: once
 `--openspec windsurf <repo>` actually runs the real CLI, that content moves out of `.windsurf/`
 entirely, to `.devin/skills/*` + `.devin/workflows/opsx-*.md` — the CLI has renamed that integration
 "Devin Desktop (formerly Windsurf)" (`windsurf` is now only a deprecated alias for its real `devin`

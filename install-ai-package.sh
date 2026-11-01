@@ -49,7 +49,7 @@ Usage:
   $(basename "$0") --init <destination-repo>
   $(basename "$0") --copy <destination-repo>
   $(basename "$0") --scan <destination-repo>
-  $(basename "$0") --agents <copilot,claude,cursor,windsurf,jetbrains> <destination-repo>
+  $(basename "$0") --agents <copilot,claude,cursor,windsurf,jetbrains,antigravity> <destination-repo>
   $(basename "$0") --sync <destination-repo>
   $(basename "$0") --update <destination-repo>
   $(basename "$0") --graph --update <destination-repo>
@@ -145,8 +145,8 @@ Modes:
              config — warns instead. Requires restarting the agent to take effect. Cursor CLI has
              an officially
              documented equivalent (per-turn tokens included) but is not wired up yet — no
-             confirmed usage of it in this kit's own projects to build/test against. Windsurf's
-             hook system and JetBrains have no confirmed equivalent.
+             confirmed usage of it in this kit's own projects to build/test against. Windsurf's and
+             Antigravity's hook systems and JetBrains have no confirmed equivalent.
   --help     Show this help message.
 
 Examples:
@@ -352,6 +352,24 @@ write_cursor_rule() {
     printf '%s\n' '---'
     printf 'description: %s\n' "${description:-Context skill}"
     printf '%s\n' 'alwaysApply: true'
+    printf '%s\n\n' '---'
+    cat "$src_file"
+    printf '\n'
+  } > "$dest_file"
+  ok "Generated $dest_file"
+}
+
+write_antigravity_rule() {
+  local src_file="$1"
+  local dest_file="$2"
+  local description
+  description="$(first_nonempty_line "$src_file")"
+  description="${description#\# }"
+  mkdir -p "$(dirname "$dest_file")"
+  {
+    printf '%s\n' '---'
+    printf '%s\n' 'trigger: always_on'
+    printf 'description: %s\n' "${description:-Context skill}"
     printf '%s\n\n' '---'
     cat "$src_file"
     printf '\n'
@@ -708,6 +726,78 @@ do_update() {
   do_check "$dest"
 }
 
+write_antigravity_mcp_plugin() {
+  local dest="$1" graph_dir="$2"
+  [[ -f "$dest/GEMINI.md" || -d "$dest/.agents" ]] || return 0
+  [[ -f "$graph_dir/.env" ]] || return 0
+
+  local py_bin="$graph_dir/.venv/bin/python"
+  [[ -x "$py_bin" ]] || py_bin="$graph_dir/.venv/Scripts/python.exe"
+  [[ -x "$py_bin" ]] || { command -v python3 >/dev/null 2>&1 && py_bin="python3"; }
+  [[ -x "$py_bin" ]] || { command -v python >/dev/null 2>&1 && py_bin="python"; }
+  [[ -x "$py_bin" || "$py_bin" == "python3" || "$py_bin" == "python" ]] || return 0
+
+  local plugin_dir="$dest/.agents/plugins/graph-rag"
+  mkdir -p "$plugin_dir"
+
+  if [[ ! -f "$plugin_dir/plugin.json" ]]; then
+    cat > "$plugin_dir/plugin.json" <<'EOF'
+{
+  "name": "graph-rag",
+  "description": "Local Neo4j architecture graph MCP server (read-only Cypher and schema tools)."
+}
+EOF
+  fi
+
+  local agy_result
+  agy_result="$("$py_bin" - "$plugin_dir/mcp_config.json" "$graph_dir/.env" <<'PYEOF'
+import json
+import sys
+from pathlib import Path
+
+mcp_path = Path(sys.argv[1])
+env_path = Path(sys.argv[2])
+
+env = {}
+if env_path.exists():
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        env[k.strip()] = v.strip()
+
+config = {}
+if mcp_path.exists():
+    try:
+        config = json.loads(mcp_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        config = {}
+
+config.setdefault("mcpServers", {})
+if "graph-rag" in config["mcpServers"]:
+    print(f"EXISTS:{mcp_path}")
+else:
+    config["mcpServers"]["graph-rag"] = {
+        "command": "uvx",
+        "args": ["mcp-neo4j-cypher@0.6.0", "--transport", "stdio", "--read-only", "--namespace", "graph-rag"],
+        "env": {
+            "NEO4J_URI": env.get("NEO4J_URI", "bolt://localhost:7687"),
+            "NEO4J_USERNAME": env.get("NEO4J_USER", "neo4j"),
+            "NEO4J_PASSWORD": env.get("NEO4J_PASSWORD", "password123"),
+            "NEO4J_DATABASE": env.get("NEO4J_DATABASE", "neo4j"),
+        },
+    }
+    mcp_path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"WROTE:{mcp_path}")
+PYEOF
+)"
+  case "$agy_result" in
+    WROTE:*) ok "Wrote Antigravity graph-rag MCP plugin to ${agy_result#WROTE:}. Restart Antigravity to pick it up." ;;
+    EXISTS:*) info "Antigravity graph-rag MCP plugin already present in ${agy_result#EXISTS:}; leaving it as-is." ;;
+  esac
+}
+
 write_mcp_config() {
   local dest="$1" graph_dir="$2"
   local py_bin="$graph_dir/.venv/bin/python"
@@ -774,6 +864,8 @@ PYEOF
     *) warn "Could not update .mcp.json: $result" ;;
   esac
 
+  write_antigravity_mcp_plugin "$dest" "$graph_dir"
+
   # The MCP config above launches the server via `uvx mcp-neo4j-cypher@0.6.0`.
   # uvx resolves and downloads a package on its FIRST invocation of a given
   # spec, which can alone exceed a client's connection timeout. Pre-warming
@@ -820,7 +912,16 @@ EOF
   local f any_target=0 newly_hooked=0
   for f in "$dest"/.claude/skills/speckit-plan/SKILL.md \
            "$dest"/.claude/skills/speckit-tasks/SKILL.md \
-           "$dest"/.claude/skills/speckit-implement/SKILL.md; do
+           "$dest"/.claude/skills/speckit-implement/SKILL.md \
+           "$dest"/.agents/skills/speckit-plan/SKILL.md \
+           "$dest"/.agents/skills/speckit-tasks/SKILL.md \
+           "$dest"/.agents/skills/speckit-implement/SKILL.md \
+           "$dest"/.github/skills/speckit-plan/SKILL.md \
+           "$dest"/.github/skills/speckit-tasks/SKILL.md \
+           "$dest"/.github/skills/speckit-implement/SKILL.md \
+           "$dest"/.cursor/skills/speckit-plan/SKILL.md \
+           "$dest"/.cursor/skills/speckit-tasks/SKILL.md \
+           "$dest"/.cursor/skills/speckit-implement/SKILL.md; do
     [[ -f "$f" ]] || continue
     any_target=1
     grep -qF "$marker" "$f" 2>/dev/null && continue
@@ -1452,11 +1553,37 @@ generate_jetbrains() {
   write_jetbrains_agents_overview "$dest"
 }
 
+generate_antigravity() {
+  local dest="$1"
+  combine_context_and_rules "$dest/GEMINI.md" "$dest/.ai/context/README.md" "$dest/.ai/rules" "$dest/.ai/STARTUP.md"
+  ok "Generated $dest/GEMINI.md"
+  copy_dir_if_present "$dest/.ai/skills" "$dest/.agents/skills"
+  local skill_files=() skill_file
+  while IFS= read -r skill_file; do skill_files+=("$skill_file"); done \
+    < <(list_non_readme_markdown "$dest/.ai/context/skills")
+  local total="${#skill_files[@]}" step=0
+  if [[ $total -gt 0 ]]; then
+    info "Generating $total Antigravity rules..."
+    _QUIET=true
+    for skill_file in "${skill_files[@]}"; do
+      local slug; slug="$(skill_slug "$skill_file")"
+      _progress_bar $(( ++step )) "$total" "$slug"
+      write_antigravity_rule "$skill_file" "$dest/.agents/rules/$slug.md"
+    done
+    _QUIET=false
+    ok "Generated $step rules → .agents/rules/"
+  fi
+  if [[ -f "$dest/graph-rag/.env" ]]; then
+    write_antigravity_mcp_plugin "$dest" "$dest/graph-rag"
+  fi
+}
+
 normalize_agent() {
   local agent
   agent="$(trim "$1")"
   case "$agent" in
-    copilot|claude|cursor|windsurf|jetbrains) printf '%s' "$agent" ;;
+    copilot|claude|cursor|windsurf|jetbrains|antigravity) printf '%s' "$agent" ;;
+    agy) printf 'antigravity' ;;
     *) return 1 ;;
   esac
 }
@@ -1492,6 +1619,7 @@ do_agents() {
       cursor) generate_cursor "$dest" ;;
       windsurf) generate_windsurf "$dest" ;;
       jetbrains) generate_jetbrains "$dest" ;;
+      antigravity) generate_antigravity "$dest" ;;
     esac
   done
 }
@@ -1504,6 +1632,7 @@ detect_agents() {
   [[ -f "$dest/.cursorrules" || -d "$dest/.cursor/rules" ]] && detected+=(cursor)
   [[ -f "$dest/.windsurfrules" || -d "$dest/.windsurf/rules" ]] && detected+=(windsurf)
   [[ -f "$dest/.aiassistant/rules/project.md" || -f "$dest/AGENTS.md" || -d "$dest/.aiassistant/rules" ]] && detected+=(jetbrains)
+  [[ -f "$dest/GEMINI.md" || -d "$dest/.agents/rules" || -d "$dest/.agents/skills" || -d "$dest/.agents/workflows" ]] && detected+=(antigravity)
   printf '%s\n' "${detected[@]:-}"
 }
 
@@ -1550,6 +1679,7 @@ check_agent_files() {
     cursor) main_file="$dest/.cursorrules"; skills_dir="$dest/.cursor/skills" ;;
     windsurf) main_file="$dest/.windsurfrules"; skills_dir="$dest/.windsurf/workflows" ;;
     jetbrains) main_file="$dest/.aiassistant/rules/project.md"; skills_dir="" ;;
+    antigravity) main_file="$dest/GEMINI.md"; skills_dir="$dest/.agents/skills" ;;
   esac
 
   if [[ -s "$main_file" ]]; then
@@ -1792,7 +1922,8 @@ prune_workflow() {
       for dir in "$dest"/.ai/skills/openspec-* \
                  "$dest"/.github/skills/openspec-* \
                  "$dest"/.claude/skills/openspec-* \
-                 "$dest"/.cursor/skills/openspec-*; do
+                 "$dest"/.cursor/skills/openspec-* \
+                 "$dest"/.agents/skills/openspec-*; do
         [[ -d "$dir" ]] || continue
         rm -rf "$dir"
         removed=1
@@ -1800,7 +1931,10 @@ prune_workflow() {
       for file in "$dest"/.ai/prompts/opsx-*.prompt.md \
                   "$dest"/.github/prompts/opsx-*.prompt.md \
                   "$dest"/.claude/commands/opsx-*.prompt.md \
-                  "$dest"/.cursor/commands/opsx-*.prompt.md; do
+                  "$dest"/.cursor/commands/opsx-*.prompt.md \
+                  "$dest"/.agents/skills/.openspec-target \
+                  "$dest"/.agents/workflows/opsx-*.md \
+                  "$dest"/.agents/workflows/openspec-*.md; do
         [[ -f "$file" ]] || continue
         rm -f "$file"
         removed=1
@@ -1860,6 +1994,7 @@ speckit_integration_for() {
     copilot) printf 'copilot' ;;
     claude) printf 'claude' ;;
     cursor) printf 'cursor-agent' ;;
+    antigravity|agy) printf 'agy' ;;
     windsurf) printf '' ;;
     jetbrains) printf '' ;;
     *) printf '' ;;
@@ -1951,6 +2086,7 @@ openspec_tool_for() {
     claude) printf 'claude' ;;
     cursor) printf 'cursor' ;;
     windsurf) printf 'devin' ;;
+    antigravity|agy) printf 'antigravity' ;;
     jetbrains) printf '' ;;
     *) printf '' ;;
   esac
@@ -2135,7 +2271,7 @@ do_init() {
   printf '\n=== AI Workspace Starter Kit — interactive install ===\n\n'
 
   printf 'Which AI agent(s) do you use? (comma-separated numbers, e.g. 1,2)\n'
-  printf '  1) GitHub Copilot\n  2) Claude\n  3) Cursor\n  4) Windsurf\n  5) JetBrains AI\n'
+  printf '  1) GitHub Copilot\n  2) Claude\n  3) Cursor\n  4) Windsurf\n  5) JetBrains AI\n  6) Antigravity\n'
   local agent_choice
   read -r -p "> " agent_choice
   local agent_names=() nums n
@@ -2148,6 +2284,7 @@ do_init() {
       3) agent_names+=("cursor") ;;
       4) agent_names+=("windsurf") ;;
       5) agent_names+=("jetbrains") ;;
+      6) agent_names+=("antigravity") ;;
       "") ;;
       *) warn "Ignoring unrecognized option: $n" ;;
     esac
