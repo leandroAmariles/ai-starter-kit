@@ -15,6 +15,14 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.15.1] - 2026-11-09
+
+Fix: `insomnia-api-test` kept reusing a cached session after the gateway rejected it, so a
+session closed elsewhere (e.g. the user logged in again from the app) produced 401 on every
+call until `--fresh` was passed by hand. The script now deletes the cached session on a 401 or
+403 response and tells the caller to re-run, and `SKILL.md` documents the new behavior
+(including asking before `--take-over` when the re-login reports another active session).
+
 ## [1.15.0] - 2026-11-09
 
 Feat: new callable skill `insomnia-api-test`. The user only says the environment, the

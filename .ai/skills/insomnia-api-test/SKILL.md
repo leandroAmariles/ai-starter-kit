@@ -119,7 +119,7 @@ again - and do not close the user's session again. Use `--fresh` to force a new 
 | Exit 4 at step 3, credentials rejected | Wrong user/password or locked user. Ask the user; do not retry with variations. |
 | `400 SDV_RE_00003 Required header 'traceparent'` | Header missing (the script always sends it; only appears with a custom `--header` override). |
 | `404 SDV_RE_00001 Device not found for user` (security-devices) | `x-device-id` must be the device bound at login. Do not override it with a made-up value. |
-| `401` / `403` from the gateway | Token expired or user lacks permission: re-run with `--fresh`; then report. |
+| `401` / `403` from the gateway | The script discards the cached session automatically. Re-run to log in again (exit 3 means the user has another active session: ask before `--take-over`). If it still fails after a fresh login, the user lacks permission: report it. |
 | `502/503/504` | The script retries a GET once. If it persists, report it as environment instability; do not loop. |
 | Exit 5, "Environment ... not found / lacks login variables" | The export does not include that environment; ask the user to re-export from Insomnia. |
 

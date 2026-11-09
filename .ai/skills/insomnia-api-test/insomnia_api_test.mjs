@@ -410,6 +410,12 @@ const t0 = Date.now();
 const res = await http(url, { method, headers, body, retries: method === 'GET' ? 1 : 0 });
 const text = await res.text();
 const ms = Date.now() - t0;
+if ((res.status === 401 || res.status === 403) && !args['no-cache']) {
+  try {
+    fs.unlinkSync(cf);
+    log(`HTTP ${res.status}: cached session discarded; re-run to log in again (add --take-over only if the user agrees)`);
+  } catch { /* nothing cached */ }
+}
 
 console.log(`REQUEST  ${method} ${url.toString()}`);
 console.log(`STATUS   ${res.status}`);
