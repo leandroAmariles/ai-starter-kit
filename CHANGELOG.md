@@ -15,6 +15,21 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.15.0] - 2026-11-09
+
+Feat: new callable skill `insomnia-api-test`. The user only says the environment, the
+service/path and the parameters ("haz pruebas en Insomnia ...") and the agent logs in and
+calls the endpoint. It ships `insomnia_api_test.mjs` (Node 18+, no dependencies) that reads
+the login variables from the user's Insomnia export, runs the Ping journey (init, choice with
+public key + device, user/password, optional session take-over, RSA session key via the login
+helper, session token, PKCE authorize and token), sends the authenticated request through the
+environment gateway and prints status, time and body plus a redacted curl to paste into
+Insomnia. Sessions are cached in the OS temp folder until the token expires. Guardrails:
+credentials only through `INSOMNIA_TEST_USER`/`INSOMNIA_TEST_PASSWORD` (never argv or output);
+DEV/QA by default, PRE/PROD-like environments refused without `--allow-protected-env`; only
+`GET` without `--confirm-write`; session take-over (which logs the user out elsewhere) only
+with `--take-over` after the user agrees. Documented in the `STARTUP.md` routing table.
+
 ## [1.14.0] - 2026-11-01
 
 Feat: add first-class Google Antigravity (`antigravity` / `agy`) compatibility to `install-ai-package.sh`:

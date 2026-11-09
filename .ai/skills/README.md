@@ -43,6 +43,7 @@ Each `SKILL.md` defines:
 | `code-context-builder` | Generate schema-v2 XML context (Maven model, AST summaries, findings, hashes) for a Java Maven repo with `migration-tools/code-context-builder` — requires `install-ai-package.sh --migration` |
 | `spring-boot-4-migration` | Migrate a Maven reactor to the BAC parent, Spring Boot 4, Spring 7 and Jackson 3 from that context — requires `--migration` and the parent POM at `.ai/migration-context/pom.xml` |
 | `jmeter-load-test` | Design and execute a JMeter load test against an endpoint: asks for the endpoint, builds the `.jmx`, runs in CLI mode, and reports results; compares against SLOs and draws conclusions only when the user provides an objective |
+| `insomnia-api-test` | Test an endpoint in a DEV/QA environment the way Insomnia does: logs in through the Ping journey using the user's Insomnia export, builds the request from environment + service path + parameters, sends it and reports the response (with a redacted curl for Insomnia). Needs Node 18+; the user supplies a test user/password |
 
 The `openspec-*` skills are one of two **alternative** spec-driven workflows this kit supports —
 see the root `README.md`'s "Choosing a spec-driven workflow" section. They ship here as a static,
