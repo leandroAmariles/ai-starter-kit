@@ -15,6 +15,16 @@ per-file hash baseline in `.ai/.ai-manifest.json` (not meant to be edited by han
 See the "Versioning & updates" section in `README.md` for how to cut a new version and how
 installed repos pick it up.
 
+## [1.16.0] - 2026-11-10
+
+Feat: the Claude workflow now picks the model by task. When generating `.claude/`,
+`install-ai-package.sh` pins a `model:` in the front-matter of every skill and command:
+`opus` for implementation (`openspec-apply-change` / `/opsx-apply`, `speckit-implement`,
+`spring-boot-4-migration`, `migracion`) and `sonnet` for everything else. It is applied to
+the `.claude/` copy only (`.ai/` stays agent-neutral) and re-applied after `--openspec` and
+`--speckit`, which rewrite those files. Override with `AI_CLAUDE_MODEL_IMPLEMENT` /
+`AI_CLAUDE_MODEL_DEFAULT`; `--update` rolls it out to already-installed repos.
+
 ## [1.15.1] - 2026-11-09
 
 Fix: `insomnia-api-test` kept reusing a cached session after the gateway rejected it, so a
