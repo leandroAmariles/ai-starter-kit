@@ -1448,6 +1448,40 @@ generate_copilot() {
   fi
 }
 
+# Claude Code only: pins a `model:` in the front-matter of every skill/command
+# under .claude/ so the model follows the task — Opus for implementation
+# (openspec apply, spec-kit implement, Spring Boot 4 migration), Sonnet for
+# everything else (propose, explore, update, sync, archive, commit-and-push...).
+# Applied to the .claude/ COPY only, so .ai/ stays agent-neutral (Copilot,
+# Cursor, etc. never see a Claude model alias). Idempotent: replaces any
+# existing `model:` line. Re-run after anything that regenerates .claude/
+# files (openspec init, specify init), since those overwrite the front-matter.
+# Override the aliases via AI_CLAUDE_MODEL_IMPLEMENT / AI_CLAUDE_MODEL_DEFAULT.
+apply_claude_models() {
+  local dest="$1"
+  local impl_model="${AI_CLAUDE_MODEL_IMPLEMENT:-opus}"
+  local default_model="${AI_CLAUDE_MODEL_DEFAULT:-sonnet}"
+  local file model rel count=0
+  while IFS= read -r file; do
+    [[ -f "$file" ]] || continue
+    head -n1 "$file" | tr -d '\r' | grep -qx -- '---' || continue
+    rel="$(printf '%s' "${file#"$dest"/.claude/}" | tr '[:upper:]' '[:lower:]')"
+    case "$rel" in
+      *implement*|*apply*|*spring-boot-4-migration*|*migracion*) model="$impl_model" ;;
+      *) model="$default_model" ;;
+    esac
+    awk -v model="$model" '
+      NR == 1 { print; infm = 1; next }
+      infm && /^---[ \t\r]*$/ { print "model: " model; infm = 0; print; next }
+      infm && /^model:/ { next }
+      { print }
+    ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+    count=$(( count + 1 ))
+  done < <(find "$dest/.claude/skills" "$dest/.claude/commands" -type f -name '*.md' ! -iname 'README.md' 2>/dev/null)
+  [[ $count -gt 0 ]] && ok "Pinned Claude model per task in $count skill/command files (implementation: $impl_model, rest: $default_model)"
+  return 0
+}
+
 generate_claude() {
   local dest="$1"
   combine_context_and_rules "$dest/CLAUDE.md" "$dest/.ai/context/README.md" "$dest/.ai/rules" "$dest/.ai/STARTUP.md"
@@ -1455,6 +1489,7 @@ generate_claude() {
   copy_dir_if_present "$dest/.ai/skills" "$dest/.claude/skills"
   copy_dir_if_present "$dest/.ai/prompts" "$dest/.claude/commands"
   cleanup_stale_openspec_static "$dest" "claude"
+  apply_claude_models "$dest"
   ensure_gitignore_entry "$dest" ".claude/settings.local.json" \
     "Claude Code local settings (machine-specific; may hold enabled MCP servers/tokens)"
   local skill_files=() skill_file
@@ -2062,6 +2097,9 @@ do_speckit() {
     printf '%s\n' "$extension_output" | sed 's/^/    /'
   fi
 
+  # specify init rewrites .claude/ skills/commands, dropping the pinned model.
+  [[ -d "$dest/.claude" ]] && apply_claude_models "$dest"
+
   ensure_gitignore_entry "$dest" "specs/*/.token-usage.json" \
     "Per-spec AI agent token usage (local telemetry written by ~/.claude or ~/.copilot/statusline.py; not source)"
 }
@@ -2227,6 +2265,8 @@ do_openspec() {
     for agent in "${mapped_agents[@]}"; do
       cleanup_stale_openspec_static "$dest" "$agent"
     done
+    # openspec init rewrites .claude/ skills/commands, dropping the pinned model.
+    [[ -d "$dest/.claude" ]] && apply_claude_models "$dest" || true
   else
     warn "openspec init failed. From $dest, run manually: $runner init --tools $tools_csv --force"
   fi
